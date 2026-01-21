@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="FlowDashboard - 心流儀表板，協助您進入並維持專注狀態">
+  <meta name="theme-color" content="#1C1917">
+
+  <title>心流</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="assets/icons/favicon.svg">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="styles/index.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <!-- Header -->
+    <header class="app__header">
+      <h1 class="app__title">心流</h1>
+      <div class="app__header-actions">
+        <button class="btn btn--ghost" id="sound-toggle" aria-label="切換音效">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="app__main">
+      <!-- Left Panel: Timer -->
+      <section class="app__left" id="timer-container" data-state="IDLE">
+        <div class="timer" id="timer" data-state="IDLE">
+          <!-- Status Badge -->
+          <div class="timer__status" id="timer-status">靜待</div>
+
+          <!-- Timer Display -->
+          <div class="timer__display">
+            <span class="timer__time" id="timer-time">25:00</span>
+          </div>
+
+          <!-- Duration Control (only visible in IDLE) -->
+          <div class="timer__duration-control" id="duration-control">
+            <button class="timer__duration-btn" id="duration-decrease" aria-label="減少時間">−</button>
+            <span class="timer__duration-value" id="duration-value">25 分鐘</span>
+            <button class="timer__duration-btn" id="duration-increase" aria-label="增加時間">+</button>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="timer__actions" id="timer-actions">
+            <button class="btn btn--primary" id="timer-primary-btn">開始</button>
+            <button class="btn btn--secondary" id="timer-secondary-btn" hidden>結束</button>
+          </div>
+
+          <!-- Record Toggle -->
+          <button class="timer__record-toggle" id="record-toggle" aria-expanded="false">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+            <span>展開紀錄</span>
+          </button>
+
+          <!-- Record Panel -->
+          <div class="timer__record-panel" id="record-panel" data-expanded="false">
+            <div class="record-list" id="record-list">
+              <p class="record-empty">尚無專注紀錄</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Panel -->
+      <aside class="app__right">
+        <!-- Top 3 Priorities -->
+        <section class="top3-section">
+          <div class="top3" id="top3">
+            <h2 class="top3__title">今日三大優先</h2>
+            <ul class="top3__list" id="top3-list">
+              <li class="top3__item" data-index="1">
+                <input type="checkbox" class="top3__checkbox" id="top3-check-1">
+                <input type="text" class="top3__input" id="top3-text-1" placeholder="優先事項...">
+              </li>
+              <li class="top3__item" data-index="2">
+                <input type="checkbox" class="top3__checkbox" id="top3-check-2">
+                <input type="text" class="top3__input" id="top3-text-2" placeholder="優先事項...">
+              </li>
+              <li class="top3__item" data-index="3">
+                <input type="checkbox" class="top3__checkbox" id="top3-check-3">
+                <input type="text" class="top3__input" id="top3-text-3" placeholder="優先事項...">
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- Task List -->
+        <section class="task-section">
+          <header class="task-section__header">
+            <h2 class="task-section__title">任務流程表</h2>
+          </header>
+          <div class="task-section__list" id="task-list">
+            <!-- Tasks will be rendered here -->
+          </div>
+          <button class="add-task-btn" id="add-task-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>新增任務</span>
+          </button>
+        </section>
+      </aside>
+    </main>
+
+    <!-- Summary FAB -->
+    <div class="summary-fab" id="summary-fab">
+      <button class="summary-fab__trigger" id="summary-trigger" aria-label="今日摘要">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="20" x2="18" y2="10"></line>
+          <line x1="12" y1="20" x2="12" y2="4"></line>
+          <line x1="6" y1="20" x2="6" y2="14"></line>
+        </svg>
+      </button>
+      <div class="summary-fab__panel" id="summary-panel">
+        <div class="summary-fab__item">
+          <span class="summary-fab__label">專注次數</span>
+          <span class="summary-fab__value" id="summary-focus-count">0</span>
+        </div>
+        <div class="summary-fab__item">
+          <span class="summary-fab__label">總時間</span>
+          <span class="summary-fab__value" id="summary-total-time">0m</span>
+        </div>
+        <div class="summary-fab__item">
+          <span class="summary-fab__label">完成任務</span>
+          <span class="summary-fab__value" id="summary-task-count">0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task Card Template -->
+  <template id="task-card-template">
+    <article class="task-card" data-task-id="">
+      <header class="task-card__header">
+        <input type="checkbox" class="task-card__checkbox">
+        <input type="text" class="task-card__name" placeholder="任務名稱...">
+        <button class="task-card__delete" aria-label="刪除任務">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+      </header>
+      <div class="task-card__body">
+        <input type="text" class="task-card__description" placeholder="一句話說明這個任務...">
+        <ul class="task-card__steps">
+          <li class="task-card__step">
+            <input type="checkbox" class="task-card__step-check">
+            <input type="text" class="task-card__step-text" placeholder="步驟 1（必填）">
+          </li>
+          <li class="task-card__step">
+            <input type="checkbox" class="task-card__step-check">
+            <input type="text" class="task-card__step-text" placeholder="步驟 2（選填）">
+          </li>
+          <li class="task-card__step">
+            <input type="checkbox" class="task-card__step-check">
+            <input type="text" class="task-card__step-text" placeholder="步驟 3（選填）">
+          </li>
+        </ul>
+      </div>
+    </article>
+  </template>
+
+  <!-- Scripts -->
+  <script type="module" src="scripts/app.js"></script>
+</body>
+</html>

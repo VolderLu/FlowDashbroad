@@ -1,0 +1,248 @@
+/**
+ * FlowDashboard - Timer Component
+ * 番茄鐘元件樣式
+ */
+
+.timer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-timer-y) var(--space-8);
+  width: 100%;
+  max-width: 400px;
+}
+
+/* === Status Badge === */
+.timer__status {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  transition: all var(--duration-normal) var(--ease-natural);
+}
+
+.timer[data-state="FOCUS_RUNNING"] .timer__status {
+  background: var(--color-primary);
+  color: var(--color-text-primary);
+}
+
+.timer[data-state="FOCUS_PAUSED"] .timer__status {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.timer[data-state="BREAK_RUNNING"] .timer__status {
+  background: var(--color-secondary);
+  color: var(--color-text-primary);
+}
+
+.timer[data-state="BREAK_PAUSED"] .timer__status {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+/* === Timer Display === */
+.timer__display {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+}
+
+.timer__time {
+  font-family: var(--font-mono);
+  font-size: var(--text-timer);
+  font-weight: var(--font-normal);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text-primary);
+  line-height: 1;
+  transition: all var(--duration-fast) var(--ease-natural);
+}
+
+/* Glow animation during focus */
+.timer[data-state="FOCUS_RUNNING"] .timer__display {
+  animation: gentle-glow var(--duration-glow) var(--ease-natural) infinite;
+}
+
+@keyframes gentle-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 20px rgba(139, 115, 85, 0.2));
+  }
+  50% {
+    filter: drop-shadow(0 0 40px rgba(139, 115, 85, 0.35));
+  }
+}
+
+/* === Duration Control === */
+.timer__duration-control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  opacity: 1;
+  transition: opacity var(--duration-normal) var(--ease-out-soft);
+}
+
+.timer:not([data-state="IDLE"]) .timer__duration-control {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.timer__duration-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  border: var(--border-subtle);
+  color: var(--color-text-secondary);
+  font-size: var(--text-xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out-soft);
+}
+
+.timer__duration-btn:hover {
+  background: var(--color-surface-elevated);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+}
+
+.timer__duration-btn:active {
+  transform: scale(0.95);
+}
+
+.timer__duration-value {
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  min-width: 80px;
+  text-align: center;
+}
+
+/* === Actions === */
+.timer__actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.timer__actions .btn {
+  min-width: 100px;
+}
+
+/* === Record Toggle === */
+.timer__record-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color var(--duration-normal) var(--ease-out-soft);
+}
+
+.timer__record-toggle:hover {
+  color: var(--color-text-secondary);
+}
+
+.timer__record-toggle svg {
+  width: 16px;
+  height: 16px;
+  transition: transform var(--duration-normal) var(--ease-out-soft);
+}
+
+.timer__record-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+/* === Record Panel === */
+.timer__record-panel {
+  width: 100%;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height var(--duration-slow) var(--ease-natural);
+}
+
+.timer__record-panel[data-expanded="true"] {
+  max-height: 300px;
+}
+
+.record-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-4);
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.record-item {
+  display: grid;
+  grid-template-columns: 40px 80px 1fr;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-elevated);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+
+.record-item__index {
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+}
+
+.record-item__duration {
+  font-family: var(--font-mono);
+  color: var(--color-primary-light);
+  background: transparent;
+  border: none;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.record-item__duration:hover {
+  background: var(--color-surface);
+}
+
+.record-item__duration:focus {
+  background: var(--color-surface);
+  outline: 1px solid var(--color-primary);
+}
+
+.record-item__task {
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.record-item__task:hover {
+  background: var(--color-surface);
+}
+
+.record-item__task:focus {
+  background: var(--color-surface);
+  outline: 1px solid var(--color-primary);
+}
+
+.record-empty {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  padding: var(--space-6);
+}

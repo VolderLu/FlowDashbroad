@@ -1,0 +1,79 @@
+/**
+ * FlowDashboard - Top 3 Priorities Component
+ * 三大優先元件樣式
+ */
+
+.top3 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.top3__title {
+  font-size: var(--text-lg);
+  font-weight: var(--font-medium);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.top3__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  list-style: none;
+}
+
+.top3__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface-elevated);
+  border-radius: var(--radius-md);
+  border: var(--border-subtle);
+  transition: all var(--duration-normal) var(--ease-natural);
+}
+
+.top3__item:hover {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.top3__item--completed {
+  opacity: 0.5;
+}
+
+.top3__item--completed .top3__input {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+
+.top3__checkbox {
+  flex-shrink: 0;
+}
+
+.top3__input {
+  flex: 1;
+  font-size: var(--text-base);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: var(--space-1) 0;
+}
+
+.top3__input::placeholder {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Index indicator */
+.top3__item::before {
+  content: attr(data-index);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}

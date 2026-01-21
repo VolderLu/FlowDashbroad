@@ -1,0 +1,194 @@
+/**
+ * FlowDashboard - Layout Styles
+ * 頁面佈局
+ */
+
+/* === Main App Container === */
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+}
+
+/* === Header === */
+.app__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-6);
+  background: var(--color-surface);
+  border-bottom: var(--border-subtle);
+  height: 56px;
+}
+
+.app__title {
+  font-family: var(--font-heading);
+  font-size: var(--text-2xl);
+  font-weight: var(--font-light);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text-primary);
+}
+
+.app__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* === Main Content Area === */
+.app__main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+}
+
+/* === Left Panel (Timer) === */
+.app__left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  position: relative;
+  overflow: hidden;
+}
+
+.app__left::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--gradient-timer-glow);
+  opacity: 0;
+  transition: opacity var(--duration-slow) var(--ease-natural);
+  pointer-events: none;
+}
+
+.app__left[data-state="FOCUS_RUNNING"]::before {
+  opacity: 1;
+}
+
+/* === Right Panel === */
+.app__right {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border-left: var(--border-subtle);
+  overflow: hidden;
+}
+
+/* === Top 3 Section === */
+.top3-section {
+  padding: var(--space-6);
+  border-bottom: var(--border-subtle);
+  background: var(--color-surface);
+}
+
+/* === Task List Section === */
+.task-section {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: var(--space-6);
+}
+
+.task-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.task-section__title {
+  font-size: var(--text-lg);
+  font-weight: var(--font-medium);
+  color: var(--color-text-secondary);
+}
+
+.task-section__list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-right: var(--space-2);
+}
+
+/* === Summary FAB === */
+.summary-fab {
+  position: fixed;
+  left: var(--space-6);
+  bottom: var(--space-6);
+  z-index: 100;
+}
+
+.summary-fab__trigger {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  border: var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out-soft);
+  box-shadow: var(--shadow-md);
+}
+
+.summary-fab__trigger:hover {
+  background: var(--color-surface-elevated);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.summary-fab__trigger svg {
+  width: 24px;
+  height: 24px;
+  color: var(--color-text-secondary);
+}
+
+.summary-fab__panel {
+  position: absolute;
+  bottom: calc(100% + var(--space-3));
+  left: 0;
+  background: var(--color-surface);
+  border: var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  min-width: 180px;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  transition: all var(--duration-normal) var(--ease-organic);
+}
+
+.summary-fab--open .summary-fab__panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.summary-fab__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-2) 0;
+}
+
+.summary-fab__item + .summary-fab__item {
+  border-top: var(--border-subtle);
+}
+
+.summary-fab__label {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.summary-fab__value {
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: var(--color-text-primary);
+}

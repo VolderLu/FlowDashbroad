@@ -1,0 +1,194 @@
+/**
+ * FlowDashboard - Task Card Component
+ * 任務卡片元件樣式
+ */
+
+.task-card {
+  background: var(--color-surface);
+  border: var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-card-padding);
+  transition: all var(--duration-normal) var(--ease-natural);
+  cursor: pointer;
+}
+
+.task-card:hover {
+  background: var(--color-surface-elevated);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Active state - currently working on */
+.task-card--active {
+  border-left: 3px solid var(--color-primary);
+  background: linear-gradient(
+    90deg,
+    rgba(139, 115, 85, 0.08) 0%,
+    var(--color-surface) 30%
+  );
+  box-shadow: var(--shadow-sm);
+}
+
+/* Completed state */
+.task-card--completed {
+  opacity: 0.4;
+  transform: translateY(4px);
+  order: 999;
+}
+
+.task-card--completed .task-card__name {
+  text-decoration: line-through;
+}
+
+/* === Header === */
+.task-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.task-card__checkbox {
+  flex-shrink: 0;
+}
+
+.task-card__name {
+  flex: 1;
+  font-size: var(--text-lg);
+  font-weight: var(--font-medium);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: var(--space-1) 0;
+}
+
+.task-card__name::placeholder {
+  color: var(--color-text-muted);
+}
+
+.task-card__delete {
+  padding: var(--space-2);
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--duration-normal) var(--ease-out-soft);
+}
+
+.task-card:hover .task-card__delete {
+  opacity: 1;
+}
+
+.task-card__delete:hover {
+  color: var(--color-error);
+  background: rgba(155, 79, 79, 0.1);
+}
+
+.task-card__delete svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* === Body === */
+.task-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-left: calc(18px + var(--space-3)); /* Align with checkbox */
+}
+
+/* === Description === */
+.task-card__description {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-normal) var(--ease-out-soft);
+}
+
+.task-card__description:hover {
+  background: var(--color-surface-elevated);
+}
+
+.task-card__description:focus {
+  background: var(--color-surface-elevated);
+}
+
+.task-card__description::placeholder {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* === Steps === */
+.task-card__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  border-left: 2px solid var(--color-border);
+  padding-left: var(--space-4);
+  margin-left: var(--space-2);
+}
+
+.task-card__step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.task-card__step-check {
+  width: 14px;
+  height: 14px;
+}
+
+.task-card__step-text {
+  flex: 1;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: var(--space-1);
+}
+
+.task-card__step-text::placeholder {
+  color: var(--color-text-muted);
+}
+
+.task-card__step--completed .task-card__step-text {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+
+/* === Add Task Button === */
+.add-task-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-4);
+  background: transparent;
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out-soft);
+}
+
+.add-task-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary-light);
+  background: rgba(139, 115, 85, 0.05);
+}
+
+.add-task-btn svg {
+  width: 20px;
+  height: 20px;
+}
