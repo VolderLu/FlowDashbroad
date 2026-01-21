@@ -9,7 +9,13 @@ import { AudioService } from '../services/audio.js';
 // DOM 元素
 let taskListEl;
 let addTaskBtn;
-let taskTemplate;
+
+// 追蹤是否正在輸入（避免 render 中斷輸入）
+let isTyping = false;
+let typingTimeout = null;
+
+// 延遲儲存用的 debounce timers
+const saveTimers = new Map();
 
 /**
  * 初始化 Tasks 模組
@@ -17,16 +23,48 @@ let taskTemplate;
 export function initTasks() {
   taskListEl = document.getElementById('task-list');
   addTaskBtn = document.getElementById('add-task-btn');
-  taskTemplate = document.getElementById('task-card-template');
 
   // 綁定新增任務按鈕
   addTaskBtn.addEventListener('click', handleAddTask);
 
   // 訂閱狀態變化
-  Store.subscribe(render);
+  Store.subscribe(handleStateChange);
 
   // 初始渲染
   render(Store.getState());
+}
+
+/**
+ * 處理狀態變化
+ * @param {Object} state
+ */
+function handleStateChange(state) {
+  // 如果正在輸入，不重新渲染（避免中斷輸入）
+  if (isTyping) {
+    return;
+  }
+  render(state);
+}
+
+/**
+ * 設定輸入狀態
+ * @param {boolean} typing
+ */
+function setTyping(typing) {
+  isTyping = typing;
+
+  if (typing) {
+    // 清除之前的 timeout
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+    }
+    // 停止輸入後 1 秒才允許 render
+    typingTimeout = setTimeout(() => {
+      isTyping = false;
+      // 輸入結束後，用最新狀態重新渲染
+      render(Store.getState());
+    }, 1000);
+  }
 }
 
 /**
@@ -34,6 +72,10 @@ export function initTasks() {
  */
 function handleAddTask() {
   const taskId = Store.TaskActions.addTask();
+
+  // 立即渲染（新增任務時需要立即顯示）
+  isTyping = false;
+  render(Store.getState());
 
   // 等待渲染完成後，聚焦到新任務的名稱輸入框
   requestAnimationFrame(() => {
@@ -160,13 +202,17 @@ function bindTaskEvents() {
 
   // 任務名稱
   taskListEl.querySelectorAll('.task-card__name').forEach(input => {
-    input.addEventListener('input', debounce(handleTaskNameChange, 300));
+    input.addEventListener('input', handleTaskNameInput);
+    input.addEventListener('focus', () => setTyping(true));
+    input.addEventListener('blur', handleTaskNameBlur);
     input.addEventListener('click', e => e.stopPropagation());
   });
 
   // 任務描述
   taskListEl.querySelectorAll('.task-card__description').forEach(input => {
-    input.addEventListener('input', debounce(handleTaskDescriptionChange, 300));
+    input.addEventListener('input', handleTaskDescriptionInput);
+    input.addEventListener('focus', () => setTyping(true));
+    input.addEventListener('blur', handleTaskDescriptionBlur);
     input.addEventListener('click', e => e.stopPropagation());
   });
 
@@ -183,7 +229,9 @@ function bindTaskEvents() {
 
   // 步驟文字
   taskListEl.querySelectorAll('.task-card__step-text').forEach(input => {
-    input.addEventListener('input', debounce(handleStepTextChange, 300));
+    input.addEventListener('input', handleStepTextInput);
+    input.addEventListener('focus', () => setTyping(true));
+    input.addEventListener('blur', handleStepTextBlur);
     input.addEventListener('click', e => e.stopPropagation());
   });
 }
@@ -232,22 +280,62 @@ function handleTaskComplete(e) {
 }
 
 /**
- * 處理任務名稱變更
+ * 處理任務名稱輸入（只標記正在輸入，不儲存）
  * @param {Event} e
  */
-function handleTaskNameChange(e) {
+function handleTaskNameInput(e) {
+  setTyping(true);
+
+  // 延遲儲存
   const card = e.target.closest('.task-card');
   const taskId = card.dataset.taskId;
+  const value = e.target.value;
+
+  debouncedSave(`name-${taskId}`, () => {
+    Store.TaskActions.updateTask(taskId, { name: value });
+  });
+}
+
+/**
+ * 處理任務名稱失焦（立即儲存）
+ * @param {Event} e
+ */
+function handleTaskNameBlur(e) {
+  const card = e.target.closest('.task-card');
+  const taskId = card.dataset.taskId;
+
+  // 清除延遲儲存
+  clearSaveTimer(`name-${taskId}`);
+
+  // 立即儲存
   Store.TaskActions.updateTask(taskId, { name: e.target.value });
 }
 
 /**
- * 處理任務描述變更
+ * 處理任務描述輸入
  * @param {Event} e
  */
-function handleTaskDescriptionChange(e) {
+function handleTaskDescriptionInput(e) {
+  setTyping(true);
+
   const card = e.target.closest('.task-card');
   const taskId = card.dataset.taskId;
+  const value = e.target.value;
+
+  debouncedSave(`desc-${taskId}`, () => {
+    Store.TaskActions.updateTask(taskId, { description: value });
+  });
+}
+
+/**
+ * 處理任務描述失焦
+ * @param {Event} e
+ */
+function handleTaskDescriptionBlur(e) {
+  const card = e.target.closest('.task-card');
+  const taskId = card.dataset.taskId;
+
+  clearSaveTimer(`desc-${taskId}`);
   Store.TaskActions.updateTask(taskId, { description: e.target.value });
 }
 
@@ -259,6 +347,9 @@ function handleTaskDelete(e) {
   e.stopPropagation();
   const card = e.target.closest('.task-card');
   const taskId = card.dataset.taskId;
+
+  // 刪除時立即渲染
+  isTyping = false;
   Store.TaskActions.deleteTask(taskId);
 }
 
@@ -274,14 +365,64 @@ function handleStepComplete(e) {
 }
 
 /**
- * 處理步驟文字變更
+ * 處理步驟文字輸入
  * @param {Event} e
  */
-function handleStepTextChange(e) {
+function handleStepTextInput(e) {
+  setTyping(true);
+
   const card = e.target.closest('.task-card');
   const taskId = card.dataset.taskId;
   const stepIndex = parseInt(e.target.dataset.stepIndex, 10);
+  const value = e.target.value;
+
+  debouncedSave(`step-${taskId}-${stepIndex}`, () => {
+    Store.TaskActions.updateStep(taskId, stepIndex, value);
+  });
+}
+
+/**
+ * 處理步驟文字失焦
+ * @param {Event} e
+ */
+function handleStepTextBlur(e) {
+  const card = e.target.closest('.task-card');
+  const taskId = card.dataset.taskId;
+  const stepIndex = parseInt(e.target.dataset.stepIndex, 10);
+
+  clearSaveTimer(`step-${taskId}-${stepIndex}`);
   Store.TaskActions.updateStep(taskId, stepIndex, e.target.value);
+}
+
+/**
+ * 延遲儲存（使用 Map 管理多個 timer）
+ * @param {string} key
+ * @param {Function} saveFn
+ */
+function debouncedSave(key, saveFn) {
+  // 清除之前的 timer
+  if (saveTimers.has(key)) {
+    clearTimeout(saveTimers.get(key));
+  }
+
+  // 設定新的 timer（500ms 後儲存）
+  const timer = setTimeout(() => {
+    saveFn();
+    saveTimers.delete(key);
+  }, 500);
+
+  saveTimers.set(key, timer);
+}
+
+/**
+ * 清除儲存 timer
+ * @param {string} key
+ */
+function clearSaveTimer(key) {
+  if (saveTimers.has(key)) {
+    clearTimeout(saveTimers.get(key));
+    saveTimers.delete(key);
+  }
 }
 
 /**
@@ -294,18 +435,4 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
-}
-
-/**
- * Debounce 函數
- * @param {Function} fn
- * @param {number} delay
- * @returns {Function}
- */
-function debounce(fn, delay) {
-  let timeoutId;
-  return function (...args) {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
-  };
 }
