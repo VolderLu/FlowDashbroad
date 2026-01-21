@@ -58,12 +58,12 @@ function setTyping(typing) {
     if (typingTimeout) {
       clearTimeout(typingTimeout);
     }
-    // 停止輸入後 1 秒才允許 render
+    // 停止輸入後 10 秒才允許 render
     typingTimeout = setTimeout(() => {
       isTyping = false;
       // 輸入結束後，用最新狀態重新渲染
       render(Store.getState());
-    }, 1000);
+    }, 10000);
   }
 }
 
