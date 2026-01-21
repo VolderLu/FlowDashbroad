@@ -33,6 +33,7 @@ FlowDashboard 是一個靜態網頁應用，旨在協助使用者進入並維持
 - 5 種狀態切換：靜待、沉浸、小憩、呼吸、駐足
 - 每 3 次專注自動進入 15 分鐘長休息
 - 有效專注門檻：>= 5 分鐘才記錄
+- **Web Worker 計時**：解決瀏覽器標籤頁節流問題，確保計時精準
 
 ### 三大優先
 
@@ -51,6 +52,13 @@ FlowDashboard 是一個靜態網頁應用，旨在協助使用者進入並維持
 - 浮動按鈕顯示統計
 - 專注次數、總時間、完成任務數
 - 不顯示評價、比較或趨勢
+
+### 主題切換
+
+- **深色主題**（預設）：墨色背景、焦茶主色
+- **暖色主題**：Morandi 色調、和紙暖白背景
+- 右上角按鈕一鍵切換
+- 設定自動儲存
 
 ### 通知與音效
 
@@ -102,7 +110,7 @@ npx serve
 FlowDashboard/
 ├── index.html              # 主頁面
 ├── styles/
-│   ├── variables.css       # Wabi-Sabi 設計變數
+│   ├── variables.css       # 設計變數（含深色/暖色主題）
 │   ├── base.css            # 基礎樣式
 │   ├── layout.css          # 版面佈局
 │   ├── index.css           # 樣式入口
@@ -111,7 +119,11 @@ FlowDashboard/
 │   ├── app.js              # 應用程式入口
 │   ├── state/store.js      # 狀態管理
 │   ├── modules/            # UI 模組
+│   │   └── timer.js        # 番茄鐘（Web Worker 計時）
 │   ├── services/           # 服務層
+│   │   └── theme.js        # 主題切換服務
+│   ├── workers/            # Web Workers
+│   │   └── timer-worker.js # 計時器 Worker
 │   └── utils/              # 工具函數
 └── assets/
     └── icons/favicon.svg   # 網站圖示
@@ -119,13 +131,29 @@ FlowDashboard/
 
 ## 設計規格
 
+### 深色主題（預設）
+
 | 項目 | 規格 |
 |------|------|
 | 主色（專注） | `#8B7355` 焦茶色 |
 | 副色（休息） | `#7D8471` 苔蘚綠 |
 | 背景色 | `#1C1917` 墨色 |
 | 文字色 | `#F5F0E8` 生成色（和紙白） |
-| 標題字型 | Cormorant Garamond |
+
+### 暖色主題（Morandi + Wabi-Sabi）
+
+| 項目 | 規格 |
+|------|------|
+| 主色（專注） | `#B5846B` 陶土赭石 |
+| 副色（休息） | `#8A9A82` 霧灰苔蘚 |
+| 背景色 | `#F5F0E8` 和紙暖白 |
+| 文字色 | `#3D3632` 深褐色 |
+
+### 字型與動畫
+
+| 項目 | 規格 |
+|------|------|
+| 標題字型 | LXGW WenKai TC（霞鶩文楷） |
 | 內文字型 | Zen Kaku Gothic New |
 | 數字字型 | JetBrains Mono |
 | 動畫時長 | 250-500ms |

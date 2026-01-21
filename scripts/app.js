@@ -10,6 +10,7 @@ import { initTop3 } from './modules/top3.js';
 import { initSummary } from './modules/summary.js';
 import { NotificationService } from './services/notification.js';
 import { AudioService } from './services/audio.js';
+import { ThemeService } from './services/theme.js';
 
 /**
  * 初始化應用程式
@@ -30,6 +31,9 @@ async function init() {
 
   // 請求通知權限
   await NotificationService.requestPermission();
+
+  // 初始化主題服務（優先載入，避免閃爍）
+  ThemeService.init();
 
   // 初始化各模組
   initTimer();

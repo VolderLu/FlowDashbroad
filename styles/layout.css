@@ -37,6 +37,38 @@
   gap: var(--space-2);
 }
 
+/* === Theme Toggle Button === */
+#theme-toggle {
+  position: relative;
+}
+
+.theme-icon {
+  transition: opacity var(--duration-normal) var(--ease-natural),
+              transform var(--duration-normal) var(--ease-natural);
+}
+
+/* 深色主題 (預設): 顯示月亮，隱藏太陽 */
+.theme-icon--dark {
+  opacity: 1;
+}
+
+.theme-icon--warm {
+  position: absolute;
+  opacity: 0;
+  transform: rotate(-90deg);
+}
+
+/* 暖色主題: 顯示太陽，隱藏月亮 */
+[data-theme="warm"] .theme-icon--dark {
+  opacity: 0;
+  transform: rotate(90deg);
+}
+
+[data-theme="warm"] .theme-icon--warm {
+  opacity: 1;
+  transform: rotate(0deg);
+}
+
 /* === Main Content Area === */
 .app__main {
   display: grid;

@@ -1,8 +1,11 @@
 /**
  * FlowDashboard - CSS Variables (Wabi-Sabi Style)
- * 侘寂美學設計系統
+ * 侘寂美學設計系統 - 支援深色/暖色主題切換
  */
 
+/* ============================
+   深色主題 (預設)
+   ============================ */
 :root {
   /* === Wabi-Sabi 大地色系 === */
 
@@ -37,6 +40,9 @@
   /* 特殊效果 */
   --color-glow: rgba(139, 115, 85, 0.15);
   --color-overlay: rgba(28, 25, 23, 0.8);
+
+  /* 陰影（深色主題） */
+  --shadow-color: 0, 0, 0;
 
   /* === 字型家族 === */
   --font-heading: 'LXGW WenKai TC', 'Noto Serif TC', Georgia, serif;
@@ -130,4 +136,67 @@
     rgba(139, 115, 85, 0.1) 0%,
     transparent 70%
   );
+}
+
+/* ============================
+   暖色主題 (Morandi + Wabi-Sabi)
+   溫潤和紙質感，低飽和度莫蘭迪色調
+   ============================ */
+[data-theme="warm"] {
+  /* Primary - 專注狀態（陶土/赭石色） */
+  --color-primary: #B5846B;
+  --color-primary-light: #C99B84;
+  --color-primary-dark: #96705A;
+
+  /* Secondary - 緩衝狀態（霧灰苔蘚） */
+  --color-secondary: #8A9A82;
+  --color-secondary-light: #A3B199;
+  --color-secondary-dark: #6B7A64;
+
+  /* Neutral - 背景與文字（和紙暖白） */
+  --color-bg: #F5F0E8;
+  --color-surface: #EDE6DB;
+  --color-surface-elevated: #FDFBF7;
+  --color-border: #D9CFC1;
+  --color-text-primary: #3D3632;
+  --color-text-secondary: #6B6259;
+  --color-text-muted: #9C938A;
+
+  /* Accent - 點綴色（枯葉駝金） */
+  --color-accent: #C9A67A;
+  --color-accent-warm: #B85C4A;
+
+  /* Semantic - 語意色彩（柔和處理） */
+  --color-warning: #C4A456;
+  --color-error: #A85959;
+  --color-success: #7A9B7A;
+
+  /* 特殊效果 */
+  --color-glow: rgba(181, 132, 107, 0.12);
+  --color-overlay: rgba(61, 54, 50, 0.6);
+
+  /* 陰影（暖色主題 - 更柔和） */
+  --shadow-color: 139, 115, 85;
+
+  /* 背景紋理（暖色版） */
+  --texture-paper: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.025'/%3E%3C/svg%3E");
+
+  --gradient-ambient: radial-gradient(
+    ellipse at 50% 0%,
+    rgba(181, 132, 107, 0.06) 0%,
+    transparent 60%
+  );
+
+  --gradient-timer-glow: radial-gradient(
+    circle at center,
+    rgba(181, 132, 107, 0.08) 0%,
+    transparent 70%
+  );
+
+  /* 陰影覆寫（更柔和的暖色陰影） */
+  --shadow-inset: inset 0 2px 4px rgba(139, 115, 85, 0.08);
+  --shadow-sm: 0 1px 3px rgba(139, 115, 85, 0.08), 0 1px 2px rgba(139, 115, 85, 0.04);
+  --shadow-md: 0 4px 12px rgba(139, 115, 85, 0.1), 0 2px 4px rgba(139, 115, 85, 0.06);
+  --shadow-lg: 0 8px 24px rgba(139, 115, 85, 0.12), 0 4px 8px rgba(139, 115, 85, 0.06);
+  --shadow-glow: 0 0 40px rgba(181, 132, 107, 0.15), 0 0 80px rgba(181, 132, 107, 0.08);
 }

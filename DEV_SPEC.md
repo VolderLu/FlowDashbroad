@@ -23,7 +23,7 @@
 FlowDashboard/
 ├── index.html                 # 主頁面
 ├── styles/
-│   ├── variables.css          # CSS 變數 (顏色、字型、間距)
+│   ├── variables.css          # CSS 變數 (含深色/暖色主題)
 │   ├── base.css               # 基礎樣式 (reset, typography)
 │   ├── layout.css             # 版面佈局
 │   ├── components/
@@ -39,14 +39,17 @@ FlowDashboard/
 │   │   ├── store.js           # 狀態管理
 │   │   └── actions.js         # 狀態操作
 │   ├── modules/
-│   │   ├── timer.js           # 番茄鐘邏輯
+│   │   ├── timer.js           # 番茄鐘邏輯 (Web Worker 計時)
 │   │   ├── tasks.js           # 任務管理
 │   │   ├── top3.js            # 三大優先邏輯
 │   │   └── summary.js         # 摘要邏輯
 │   ├── services/
 │   │   ├── storage.js         # localStorage 封裝
 │   │   ├── notification.js    # 通知系統
-│   │   └── audio.js           # 音效系統
+│   │   ├── audio.js           # 音效系統
+│   │   └── theme.js           # 主題切換服務
+│   ├── workers/
+│   │   └── timer-worker.js    # 計時器 Web Worker
 │   └── utils/
 │       ├── time.js            # 時間格式化
 │       └── dom.js             # DOM 操作工具
@@ -436,20 +439,79 @@ export const NotificationService = {
 export const AudioService = {
   // 初始化音效
   init(): void,
-  
+
   // 播放音效
   playFocusEnd(): void,
   playBreakEnd(): void,
   playTaskComplete(): void,
-  
+
   // 音量控制
   setVolume(volume: number): void,  // 0-1
-  
+
   // 開關
   setEnabled(enabled: boolean): void,
   isEnabled(): boolean
 };
 ```
+
+### 7.4 Theme Service
+
+```javascript
+// services/theme.js
+const THEMES = {
+  DARK: 'dark',   // 深色主題（預設）
+  WARM: 'warm'    // 暖色主題（Morandi + Wabi-Sabi）
+};
+
+export const ThemeService = {
+  // 初始化主題（從 localStorage 讀取）
+  init(): void,
+
+  // 獲取當前主題
+  getCurrentTheme(): string,
+
+  // 設定主題
+  setTheme(theme: 'dark' | 'warm'): void,
+
+  // 主題常數
+  THEMES
+};
+```
+
+#### 主題切換實作
+
+- 使用 `data-theme` 屬性在 `<html>` 元素上切換
+- CSS 變數覆寫：`[data-theme="warm"] { --color-bg: #F5F0E8; ... }`
+- 設定儲存於 `localStorage` key: `flowdashboard-theme`
+
+### 7.5 Timer Worker
+
+```javascript
+// workers/timer-worker.js
+// Web Worker 在獨立線程運行，不受瀏覽器標籤頁節流影響
+
+// 接收訊息類型
+type WorkerMessage = {
+  type: 'start' | 'pause' | 'resume' | 'stop' | 'sync' | 'getState',
+  payload?: { totalSeconds: number, pausedAt?: number }
+};
+
+// 發送訊息類型
+type WorkerResponse = {
+  type: 'tick' | 'complete' | 'paused' | 'state',
+  remaining?: number,
+  elapsed?: number,
+  pausedAt?: number,
+  state?: TimerState
+};
+```
+
+#### Worker 通訊流程
+
+1. 主線程透過 `postMessage` 發送控制指令
+2. Worker 使用 `setInterval(tick, 250)` 計時
+3. Worker 透過 `postMessage` 回傳時間更新
+4. 時間到時發送 `complete` 事件
 
 ---
 

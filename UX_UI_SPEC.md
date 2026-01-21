@@ -1,7 +1,8 @@
-# FlowDashboard UX/UI 規格 v2.0
+# FlowDashboard UX/UI 規格 v2.1
 
 > 本文件基於 PRD v1.1，定義 FlowDashboard 的使用者流程、互動規範與視覺設計指南。
 > **v2.0 更新**：採用 Wabi-Sabi（侘寂）美學風格。
+> **v2.1 更新**：新增暖色主題（Morandi + Wabi-Sabi）、主題切換功能、霞鶩文楷標題字型。
 
 ---
 
@@ -488,6 +489,8 @@ flowchart TD
 > **設計哲學**：Wabi-Sabi 美學強調「不完美之美」、自然質感與寧靜感。
 > 色彩取自大地、石頭、木材、茶道等自然元素，營造沉穩內斂的專注氛圍。
 
+#### 深色主題（預設）
+
 ```css
 :root {
   /* === Wabi-Sabi 大地色系 === */
@@ -526,6 +529,58 @@ flowchart TD
 }
 ```
 
+#### 暖色主題（Morandi + Wabi-Sabi）
+
+> **設計哲學**：莫蘭迪色調（Morandi Colors）以低飽和度、帶灰調的色彩著稱，
+> 與 Wabi-Sabi 的質樸內斂完美結合，營造溫潤和紙般的視覺體驗。
+
+```css
+[data-theme="warm"] {
+  /* Primary - 專注狀態（陶土/赭石色） */
+  --color-primary: #B5846B;       /* 陶土赭石 */
+  --color-primary-light: #C99B84;
+  --color-primary-dark: #96705A;
+
+  /* Secondary - 緩衝狀態（霧灰苔蘚） */
+  --color-secondary: #8A9A82;     /* 霧灰苔蘚 */
+  --color-secondary-light: #A3B199;
+  --color-secondary-dark: #6B7A64;
+
+  /* Neutral - 背景與文字（和紙暖白） */
+  --color-bg: #F5F0E8;            /* 和紙暖白 */
+  --color-surface: #EDE6DB;       /* 淺米灰 */
+  --color-surface-elevated: #FDFBF7; /* 純淨白 */
+  --color-border: #D9CFC1;        /* 淺駝色邊框 */
+  --color-text-primary: #3D3632;  /* 深褐色 */
+  --color-text-secondary: #6B6259;/* 中灰褐 */
+  --color-text-muted: #9C938A;    /* 淺灰褐 */
+
+  /* Accent - 點綴色（枯葉駝金） */
+  --color-accent: #C9A67A;        /* 駝金色 */
+  --color-accent-warm: #B85C4A;   /* 柔和陶紅 */
+
+  /* Semantic - 語意色彩（柔和處理） */
+  --color-warning: #C4A456;       /* 柔和金 */
+  --color-error: #A85959;         /* 柔和紅 */
+  --color-success: #7A9B7A;       /* 柔和綠 */
+
+  /* === 特殊效果 === */
+  --color-glow: rgba(181, 132, 107, 0.12);
+  --color-overlay: rgba(61, 54, 50, 0.6);
+
+  /* 陰影（更柔和的暖色陰影） */
+  --shadow-sm: 0 1px 3px rgba(139, 115, 85, 0.08);
+  --shadow-md: 0 4px 12px rgba(139, 115, 85, 0.1);
+}
+```
+
+#### 主題切換
+
+- **位置**：Header 右上角，音效按鈕左側
+- **圖示**：深色主題顯示月亮 🌙，暖色主題顯示太陽 ☀️
+- **儲存**：localStorage key `flowdashboard-theme`
+- **動畫**：圖示旋轉過渡 300ms
+
 #### 色彩應用原則
 
 | 元素 | 顏色變數 | 說明 |
@@ -540,15 +595,15 @@ flowchart TD
 
 ### 5.2 字型系統（Wabi-Sabi 風格）
 
-> **設計哲學**：選用帶有手寫感與自然氣息的字型，標題使用襯線體增添沉穩感，
+> **設計哲學**：選用帶有手寫感與自然氣息的字型，標題使用楷書體呈現書法韻味，
 > 內文使用無襯線體保持易讀性。計時器數字採用等寬字型，呈現禪定般的精確。
 
 ```css
 :root {
   /* === 字型家族 === */
 
-  /* 標題字型：Cormorant Garamond - 優雅襯線，如書道墨跡 */
-  --font-heading: 'Cormorant Garamond', 'Noto Serif TC', Georgia, serif;
+  /* 標題字型：LXGW WenKai TC - 霞鶩文楷，優雅楷書，書法韻味 */
+  --font-heading: 'LXGW WenKai TC', 'Noto Serif TC', Georgia, serif;
 
   /* 內文字型：Zen Kaku Gothic New - 日式無襯線，自然呼吸感 */
   --font-body: 'Zen Kaku Gothic New', 'Noto Sans TC', system-ui, sans-serif;
@@ -589,14 +644,14 @@ flowchart TD
 ```html
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Zen+Kaku+Gothic+New:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=LXGW+WenKai+TC:wght@300;400;700&family=Zen+Kaku+Gothic+New:wght@400;500&display=swap" rel="stylesheet">
 ```
 
 #### 字型應用原則
 
 | 元素 | 字型 | 尺寸 | 字重 | 說明 |
 |------|------|------|------|------|
-| 頁面標題 | heading | 3xl | light | 如茶室匾額，輕盈優雅 |
+| 頁面標題 | LXGW WenKai TC | 2xl | normal | 楷書韻味，書法優雅 |
 | 計時器數字 | mono | timer | normal | 沉穩精確，禪定凝視 |
 | 狀態標籤 | body | sm | medium | 小型大寫，tracking-wide |
 | 任務名稱 | body | lg | medium | 清晰可辨 |
@@ -752,17 +807,19 @@ flowchart TD
 
 ## 7. 設計決策記錄
 
-| 項目 | 決策 | v2.0 更新 |
-|------|------|-----------|
-| 色彩主題 | **僅 Dark Mode** | 採用 Wabi-Sabi 大地色系 |
-| Header | 顯示標題「**心流**」 | 簡化為單詞，襯線字體 |
-| 任務輸入 | 點擊「**+**」新增空白卡片 | + 改為細線圖示 |
-| 步驟勾選 | 步驟可**個別勾選** | 無變化 |
-| 紀錄表編輯 | 任務名稱與**時間皆可編輯** | 無變化 |
-| 音效 | **支援音效提示** | 使用自然音效（木魚、風鈴） |
-| 設計風格 | — | **Wabi-Sabi（侘寂）** |
-| 狀態文案 | 功能性描述 | **禪意表達**（沉浸、呼吸等） |
-| 動畫 | 200ms ease-out | **300-500ms 自然曲線** |
+| 項目 | 決策 | v2.0 更新 | v2.1 更新 |
+|------|------|-----------|-----------|
+| 色彩主題 | **僅 Dark Mode** | 採用 Wabi-Sabi 大地色系 | **支援深色/暖色主題切換** |
+| Header | 顯示標題「**心流**」 | 簡化為單詞，襯線字體 | **新增主題切換按鈕** |
+| 標題字體 | — | Cormorant Garamond | **LXGW WenKai TC（霞鶩文楷）** |
+| 任務輸入 | 點擊「**+**」新增空白卡片 | + 改為細線圖示 | 無變化 |
+| 步驟勾選 | 步驟可**個別勾選** | 無變化 | 無變化 |
+| 紀錄表編輯 | 任務名稱與**時間皆可編輯** | 無變化 | 無變化 |
+| 音效 | **支援音效提示** | 使用自然音效（木魚、風鈴） | 無變化 |
+| 設計風格 | — | **Wabi-Sabi（侘寂）** | **新增 Morandi 暖色風格** |
+| 狀態文案 | 功能性描述 | **禪意表達**（沉浸、呼吸等） | 無變化 |
+| 動畫 | 200ms ease-out | **300-500ms 自然曲線** | 無變化 |
+| 計時器 | setInterval | — | **Web Worker（避免標籤頁節流）** |
 
 ---
 
@@ -801,10 +858,18 @@ flowchart TD
 
 ### 字型檢查
 
-- [ ] 標題使用襯線字體（Cormorant Garamond）
+- [ ] 標題使用楷書字體（LXGW WenKai TC 霞鶩文楷）
 - [ ] 內文使用日式無襯線（Zen Kaku Gothic New）
 - [ ] 計時器數字使用等寬字體（JetBrains Mono）
 - [ ] 行高寬鬆（1.6 以上）
+
+### 主題檢查
+
+- [ ] 深色主題色彩正確套用
+- [ ] 暖色主題色彩正確套用
+- [ ] 主題切換按鈕顯示正確圖示（月亮/太陽）
+- [ ] 主題設定儲存至 localStorage
+- [ ] 頁面重新載入後保持選擇的主題
 
 ---
 
@@ -815,15 +880,20 @@ FlowDashboard/
 ├── index.html
 ├── styles/
 │   ├── index.css        # 主樣式入口
-│   ├── variables.css    # CSS 變數
+│   ├── variables.css    # CSS 變數（含深色/暖色主題）
 │   ├── layout.css       # 版面佈局
-│   └── components.css   # 元件樣式
+│   └── components/      # 元件樣式
 ├── scripts/
-│   ├── main.js          # 主程式入口
-│   ├── timer.js         # 番茄鐘邏輯
-│   ├── tasks.js         # 任務管理
-│   ├── storage.js       # localStorage 操作
-│   └── notification.js  # 通知系統
+│   ├── app.js           # 主程式入口
+│   ├── modules/
+│   │   └── timer.js     # 番茄鐘邏輯（Web Worker 計時）
+│   ├── services/
+│   │   ├── theme.js     # 主題切換服務
+│   │   └── notification.js  # 通知系統
+│   ├── workers/
+│   │   └── timer-worker.js  # 計時器 Web Worker
+│   └── state/
+│       └── store.js     # 狀態管理
 └── assets/
     └── icons/           # 圖示資源
 ```
