@@ -1,6 +1,6 @@
 /**
  * FlowDashboard - Timer Module
- * 番茄鐘模組
+ * 番茄鐘模組（使用 Web Worker 計時，徹底解決標籤頁節流問題）
  */
 
 import { Store } from '../state/store.js';
@@ -21,8 +21,16 @@ let recordToggle;
 let recordPanel;
 let recordList;
 
-// 計時器
-let timerInterval = null;
+// Web Worker 實例
+let timerWorker = null;
+
+// 本地計時狀態（用於 fallback 和狀態追蹤）
+let timerState = {
+  isRunning: false,
+  totalSeconds: 0,
+  elapsed: 0,
+  remaining: 0
+};
 
 // 狀態標籤文案對照
 const STATUS_LABELS = {
@@ -59,14 +67,66 @@ export function initTimer() {
   recordPanel = document.getElementById('record-panel');
   recordList = document.getElementById('record-list');
 
+  // 初始化 Web Worker
+  initWorker();
+
   // 綁定事件
   bindEvents();
+
+  // 監聯頁面可見性變化（標籤頁切換回來時請求同步）
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 
   // 訂閱狀態變化
   Store.subscribe(render);
 
   // 初始渲染
   render(Store.getState());
+}
+
+/**
+ * 初始化 Web Worker
+ */
+function initWorker() {
+  try {
+    // 取得當前腳本的路徑，推導 Worker 路徑
+    const workerUrl = new URL('../workers/timer-worker.js', import.meta.url);
+    timerWorker = new Worker(workerUrl, { type: 'module' });
+
+    // 監聽 Worker 訊息
+    timerWorker.onmessage = handleWorkerMessage;
+
+    timerWorker.onerror = (error) => {
+      console.error('Timer Worker error:', error);
+      // Worker 失敗時可以考慮 fallback 到原本的 setInterval 方式
+    };
+
+    console.log('Timer Web Worker initialized');
+  } catch (error) {
+    console.error('Failed to initialize Timer Worker:', error);
+  }
+}
+
+/**
+ * 處理 Worker 訊息
+ */
+function handleWorkerMessage(e) {
+  const { type, remaining, elapsed, state } = e.data;
+
+  switch (type) {
+    case 'tick':
+      handleTick(remaining, elapsed);
+      break;
+    case 'complete':
+      handleTimerComplete(elapsed);
+      break;
+    case 'paused':
+      timerState.isRunning = false;
+      timerState.elapsed = e.data.pausedAt;
+      break;
+    case 'state':
+      timerState = { ...timerState, ...state };
+      break;
+  }
 }
 
 /**
@@ -97,6 +157,72 @@ function bindEvents() {
 }
 
 /**
+ * 處理頁面可見性變化
+ */
+function handleVisibilityChange() {
+  if (!document.hidden && timerState.isRunning && timerWorker) {
+    // 標籤頁變為可見時，請求 Worker 同步一次
+    timerWorker.postMessage({ type: 'sync' });
+  }
+}
+
+/**
+ * 處理 Worker tick 訊息
+ */
+function handleTick(remaining, elapsed) {
+  timerState.remaining = remaining;
+  timerState.elapsed = elapsed;
+
+  // 更新顯示
+  timeEl.textContent = formatTime(remaining);
+
+  // 更新 store 中的時間（用於記錄）
+  Store.setState(s => ({
+    timer: {
+      ...s.timer,
+      remainingSeconds: remaining,
+      elapsedSeconds: elapsed
+    }
+  }));
+}
+
+/**
+ * 處理計時完成
+ */
+function handleTimerComplete(elapsed) {
+  const state = Store.getState();
+  const status = state.timer.status;
+
+  timerState.isRunning = false;
+
+  // 更新 store 中的 elapsedSeconds
+  Store.setState(s => ({
+    timer: {
+      ...s.timer,
+      elapsedSeconds: elapsed,
+      remainingSeconds: 0
+    }
+  }));
+
+  if (status === 'FOCUS_RUNNING') {
+    Store.TimerActions.completeFocus();
+    if (state.settings.soundEnabled) {
+      AudioService.playFocusEnd();
+    }
+    NotificationService.notifyFocusEnd();
+    // 開始休息計時
+    const newState = Store.getState();
+    startTimer(newState.timer.breakDuration * 60);
+  } else if (status === 'BREAK_RUNNING') {
+    Store.TimerActions.completeBreak();
+    if (state.settings.soundEnabled) {
+      AudioService.playBreakEnd();
+    }
+    NotificationService.notifyBreakEnd();
+  }
+}
+
+/**
  * 處理主要按鈕點擊
  */
 function handlePrimaryAction() {
@@ -108,20 +234,20 @@ function handlePrimaryAction() {
       startFocus();
       break;
     case 'FOCUS_RUNNING':
+      pauseTimer();
       Store.TimerActions.pauseFocus();
-      stopInterval();
       break;
     case 'FOCUS_PAUSED':
+      resumeTimer();
       Store.TimerActions.resumeFocus();
-      startInterval();
       break;
     case 'BREAK_RUNNING':
+      stopTimer();
       Store.TimerActions.skipBreak();
-      stopInterval();
       break;
     case 'BREAK_PAUSED':
+      resumeTimer();
       Store.TimerActions.resumeBreak();
-      startInterval();
       break;
   }
 }
@@ -134,15 +260,26 @@ function handleSecondaryAction() {
   const status = state.timer.status;
 
   if (status === 'FOCUS_RUNNING' || status === 'FOCUS_PAUSED') {
-    stopInterval();
+    const elapsedSeconds = getElapsedSeconds();
+    stopTimer();
+
+    // 更新 store 中的 elapsedSeconds
+    Store.setState(s => ({
+      timer: {
+        ...s.timer,
+        elapsedSeconds
+      }
+    }));
+
     const isValid = Store.TimerActions.stopFocus();
     if (isValid) {
-      // 播放音效並開始休息計時
       if (state.settings.soundEnabled) {
         AudioService.playFocusEnd();
       }
       NotificationService.notifyFocusEnd();
-      startInterval();
+      // 開始休息計時
+      const breakState = Store.getState();
+      startTimer(breakState.timer.breakDuration * 60);
     }
   }
 }
@@ -151,57 +288,73 @@ function handleSecondaryAction() {
  * 開始專注
  */
 function startFocus() {
+  const state = Store.getState();
   Store.TimerActions.startFocus();
-  startInterval();
+  startTimer(state.timer.focusDuration * 60);
 }
 
 /**
- * 開始計時
+ * 開始計時（透過 Web Worker）
+ * @param {number} totalSeconds - 總秒數
+ * @param {number} [pausedAt] - 如果是從暫停恢復，傳入已經過的秒數
  */
-function startInterval() {
-  stopInterval();
-  timerInterval = setInterval(tick, 1000);
+function startTimer(totalSeconds, pausedAt = null) {
+  timerState = {
+    isRunning: true,
+    totalSeconds,
+    elapsed: pausedAt || 0,
+    remaining: totalSeconds - (pausedAt || 0)
+  };
+
+  if (timerWorker) {
+    timerWorker.postMessage({
+      type: 'start',
+      payload: { totalSeconds, pausedAt }
+    });
+  }
+}
+
+/**
+ * 暫停計時
+ */
+function pauseTimer() {
+  if (timerState.isRunning && timerWorker) {
+    timerWorker.postMessage({ type: 'pause' });
+    timerState.isRunning = false;
+  }
+}
+
+/**
+ * 繼續計時
+ */
+function resumeTimer() {
+  if (!timerState.isRunning && timerWorker) {
+    timerWorker.postMessage({ type: 'resume' });
+    timerState.isRunning = true;
+  }
 }
 
 /**
  * 停止計時
  */
-function stopInterval() {
-  if (timerInterval) {
-    clearInterval(timerInterval);
-    timerInterval = null;
+function stopTimer() {
+  if (timerWorker) {
+    timerWorker.postMessage({ type: 'stop' });
   }
+  timerState = {
+    isRunning: false,
+    totalSeconds: 0,
+    elapsed: 0,
+    remaining: 0
+  };
 }
 
 /**
- * 計時器 tick
+ * 獲取已經過的秒數
+ * @returns {number}
  */
-function tick() {
-  const state = Store.getState();
-  const status = state.timer.status;
-  const remaining = state.timer.remainingSeconds;
-
-  if (remaining <= 1) {
-    // 時間到
-    stopInterval();
-
-    if (status === 'FOCUS_RUNNING') {
-      Store.TimerActions.completeFocus();
-      if (state.settings.soundEnabled) {
-        AudioService.playFocusEnd();
-      }
-      NotificationService.notifyFocusEnd();
-      startInterval(); // 開始休息計時
-    } else if (status === 'BREAK_RUNNING') {
-      Store.TimerActions.completeBreak();
-      if (state.settings.soundEnabled) {
-        AudioService.playBreakEnd();
-      }
-      NotificationService.notifyBreakEnd();
-    }
-  } else {
-    Store.TimerActions.tick();
-  }
+function getElapsedSeconds() {
+  return timerState.elapsed;
 }
 
 /**
@@ -228,8 +381,10 @@ function render(state) {
   // 更新狀態標籤
   statusEl.textContent = STATUS_LABELS[timer.status];
 
-  // 更新時間顯示
-  timeEl.textContent = formatTime(timer.remainingSeconds);
+  // 更新時間顯示（如果不在運行中，使用 store 的值）
+  if (!timerState.isRunning) {
+    timeEl.textContent = formatTime(timer.remainingSeconds);
+  }
 
   // 更新時長控制
   durationValueEl.textContent = `${timer.focusDuration} 分鐘`;
