@@ -42,11 +42,12 @@ function tick() {
   const remaining = getRemainingSeconds();
   const elapsed = getElapsedSeconds();
 
-  // 發送更新給主線程
+  // 發送更新給主線程（加上 timestamp 讓主線程能判斷訊息是否積壓）
   self.postMessage({
     type: 'tick',
     remaining,
-    elapsed
+    elapsed,
+    timestamp: Date.now()
   });
 
   // 時間到

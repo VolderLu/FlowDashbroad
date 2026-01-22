@@ -32,6 +32,9 @@ let timerState = {
   remaining: 0
 };
 
+// 上次處理的 tick timestamp（用於過濾標籤頁切換時積壓的舊訊息）
+let lastTickTimestamp = 0;
+
 // 狀態標籤文案對照
 const STATUS_LABELS = {
   IDLE: '靜待',
@@ -110,10 +113,16 @@ function initWorker() {
  * 處理 Worker 訊息
  */
 function handleWorkerMessage(e) {
-  const { type, remaining, elapsed, state } = e.data;
+  const { type, remaining, elapsed, state, timestamp } = e.data;
 
   switch (type) {
     case 'tick':
+      // 過濾積壓的舊訊息：若 timestamp 與上次差距 > 500ms，忽略此訊息
+      if (timestamp && lastTickTimestamp > 0 && (timestamp - lastTickTimestamp) > 500) {
+        // 訊息積壓，忽略此 tick，等待 getState 同步
+        return;
+      }
+      lastTickTimestamp = timestamp || Date.now();
       handleTick(remaining, elapsed);
       break;
     case 'complete':
@@ -124,7 +133,19 @@ function handleWorkerMessage(e) {
       timerState.elapsed = e.data.pausedAt;
       break;
     case 'state':
+      // 從 getState 收到狀態時，直接更新 UI（繞過 tick 機制）
       timerState = { ...timerState, ...state };
+      lastTickTimestamp = Date.now(); // 重置 timestamp 避免後續正常 tick 被過濾
+      if (state.remaining !== undefined) {
+        timeEl.textContent = formatTime(state.remaining);
+        Store.setState(s => ({
+          timer: {
+            ...s.timer,
+            remainingSeconds: state.remaining,
+            elapsedSeconds: state.elapsed
+          }
+        }));
+      }
       break;
   }
 }
@@ -161,8 +182,9 @@ function bindEvents() {
  */
 function handleVisibilityChange() {
   if (!document.hidden && timerState.isRunning && timerWorker) {
-    // 標籤頁變為可見時，請求 Worker 同步一次
-    timerWorker.postMessage({ type: 'sync' });
+    // 標籤頁變為可見時，直接請求 Worker 的完整狀態
+    // 這樣可以繞過積壓的 tick 訊息，立即獲得準確的時間
+    timerWorker.postMessage({ type: 'getState' });
   }
 }
 
