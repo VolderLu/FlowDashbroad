@@ -14,6 +14,9 @@ let addTaskBtn;
 let isTyping = false;
 let typingTimeout = null;
 
+// 追蹤是否正在 hover（避免 render 導致閃爍）
+let isHovering = false;
+
 // 延遲儲存用的 debounce timers
 const saveTimers = new Map();
 
@@ -39,8 +42,8 @@ export function initTasks() {
  * @param {Object} state
  */
 function handleStateChange(state) {
-  // 如果正在輸入，不重新渲染（避免中斷輸入）
-  if (isTyping) {
+  // 如果正在輸入或 hover，不重新渲染（避免中斷輸入或閃爍）
+  if (isTyping || isHovering) {
     return;
   }
   render(state);
@@ -189,9 +192,11 @@ function createTaskCardHTML(task, timer) {
  * 綁定任務卡片事件
  */
 function bindTaskEvents() {
-  // 卡片點擊（選擇當前任務）
+  // 卡片點擊（選擇當前任務）與 hover 事件
   taskListEl.querySelectorAll('.task-card').forEach(card => {
     card.addEventListener('click', handleCardClick);
+    card.addEventListener('mouseenter', handleCardMouseEnter);
+    card.addEventListener('mouseleave', handleCardMouseLeave);
   });
 
   // 任務完成 checkbox
@@ -258,6 +263,22 @@ function handleCardClick(e) {
   } else {
     Store.TimerActions.setCurrentTask(taskId);
   }
+}
+
+/**
+ * 處理卡片滑鼠進入（暫停 render 避免閃爍）
+ */
+function handleCardMouseEnter() {
+  isHovering = true;
+}
+
+/**
+ * 處理卡片滑鼠離開（恢復 render）
+ */
+function handleCardMouseLeave() {
+  isHovering = false;
+  // 離開後用最新狀態重新渲染
+  render(Store.getState());
 }
 
 /**
