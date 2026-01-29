@@ -35,6 +35,13 @@
   order: 999;
 }
 
+/* 預選樣式 */
+.task-card--selected {
+  border-color: var(--color-primary);
+  background: rgba(139, 115, 85, 0.1);
+  box-shadow: 0 0 0 2px rgba(139, 115, 85, 0.2);
+}
+
 .task-card--completed .task-card__name {
   text-decoration: line-through;
 }

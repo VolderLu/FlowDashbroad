@@ -145,7 +145,13 @@ const TimerActions = {
         status: 'FOCUS_RUNNING',
         remainingSeconds: s.timer.focusDuration * 60,
         elapsedSeconds: 0,
-        startTime: Date.now()
+        startTime: Date.now(),
+        // 將預選帶入 current
+        currentTaskId: s.timer.selectedTaskId,
+        currentTop3Index: s.timer.selectedTop3Index,
+        // 清除預選
+        selectedTaskId: null,
+        selectedTop3Index: null
       }
     }), { tag: UPDATE_TAGS.TIMER });
   },
@@ -218,7 +224,9 @@ const TimerActions = {
           status: 'IDLE',
           remainingSeconds: s.timer.focusDuration * 60,
           elapsedSeconds: 0,
-          startTime: null
+          startTime: null,
+          currentTaskId: null,
+          currentTop3Index: null
         }
       }), { tag: UPDATE_TAGS.TIMER });
     }
@@ -267,7 +275,9 @@ const TimerActions = {
         ...s.timer,
         status: 'IDLE',
         remainingSeconds: s.timer.focusDuration * 60,
-        elapsedSeconds: 0
+        elapsedSeconds: 0,
+        currentTaskId: null,
+        currentTop3Index: null
       }
     }), { tag: UPDATE_TAGS.TIMER });
   },
@@ -305,7 +315,9 @@ const TimerActions = {
         ...s.timer,
         status: 'IDLE',
         remainingSeconds: s.timer.focusDuration * 60,
-        elapsedSeconds: 0
+        elapsedSeconds: 0,
+        currentTaskId: null,
+        currentTop3Index: null
       }
     }), { tag: UPDATE_TAGS.TIMER });
   },
@@ -337,6 +349,45 @@ const TimerActions = {
       timer: {
         ...s.timer,
         currentTaskId: taskId
+      }
+    }), { tag: UPDATE_TAGS.TIMER });
+  },
+
+  /**
+   * 預選三大優先（IDLE 狀態下，toggle）
+   * @param {number} index - 0, 1, 2
+   */
+  selectTop3(index) {
+    setState(s => ({
+      timer: {
+        ...s.timer,
+        selectedTop3Index: s.timer.selectedTop3Index === index ? null : index
+      }
+    }), { tag: UPDATE_TAGS.TIMER });
+  },
+
+  /**
+   * 預選任務（IDLE 狀態下，toggle）
+   * @param {string} taskId
+   */
+  selectTask(taskId) {
+    setState(s => ({
+      timer: {
+        ...s.timer,
+        selectedTaskId: s.timer.selectedTaskId === taskId ? null : taskId
+      }
+    }), { tag: UPDATE_TAGS.TIMER });
+  },
+
+  /**
+   * 清除預選
+   */
+  clearSelection() {
+    setState(s => ({
+      timer: {
+        ...s.timer,
+        selectedTaskId: null,
+        selectedTop3Index: null
       }
     }), { tag: UPDATE_TAGS.TIMER });
   }

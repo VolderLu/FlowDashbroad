@@ -102,25 +102,34 @@ function handleAddTask() {
  */
 function render(state) {
   const { tasks, timer } = state;
+  const isFocusing = timer.status === 'FOCUS_RUNNING';
+
+  // 過濾任務：FOCUS 時只顯示選中的任務
+  let visibleTasks = [...tasks];
+  if (isFocusing && timer.currentTaskId) {
+    visibleTasks = tasks.filter(t => t.id === timer.currentTaskId);
+  }
 
   // 排序：未完成在前，已完成在後
-  const sortedTasks = [...tasks].sort((a, b) => {
+  visibleTasks.sort((a, b) => {
     if (a.completed && !b.completed) return 1;
     if (!a.completed && b.completed) return -1;
     return 0;
   });
 
   // 如果沒有任務，顯示空狀態
-  if (sortedTasks.length === 0) {
+  if (visibleTasks.length === 0) {
     taskListEl.innerHTML = '';
-    return;
+  } else {
+    // 渲染任務卡片
+    taskListEl.innerHTML = visibleTasks.map(task => createTaskCardHTML(task, timer)).join('');
+
+    // 綁定事件
+    bindTaskEvents();
   }
 
-  // 渲染任務卡片
-  taskListEl.innerHTML = sortedTasks.map(task => createTaskCardHTML(task, timer)).join('');
-
-  // 綁定事件
-  bindTaskEvents();
+  // FOCUS 時隱藏「新增任務」按鈕
+  addTaskBtn.style.display = isFocusing ? 'none' : '';
 }
 
 /**
@@ -131,9 +140,11 @@ function render(state) {
  */
 function createTaskCardHTML(task, timer) {
   const isActive = timer.currentTaskId === task.id;
+  const isSelected = timer.status === 'IDLE' && timer.selectedTaskId === task.id;
   const isFocusing = timer.status === 'FOCUS_RUNNING' || timer.status === 'FOCUS_PAUSED';
 
   const activeClass = isActive ? 'task-card--active' : '';
+  const selectedClass = isSelected ? 'task-card--selected' : '';
   const completedClass = task.completed ? 'task-card--completed' : '';
 
   const stepsHTML = task.steps.map((step, index) => `
@@ -156,9 +167,9 @@ function createTaskCardHTML(task, timer) {
 
   return `
     <article
-      class="task-card ${activeClass} ${completedClass}"
+      class="task-card ${activeClass} ${selectedClass} ${completedClass}"
       data-task-id="${task.id}"
-      data-clickable="${isFocusing}"
+      data-clickable="${isFocusing || timer.status === 'IDLE'}"
     >
       <header class="task-card__header">
         <input
@@ -254,20 +265,22 @@ function bindTaskEvents() {
 function handleCardClick(e) {
   const card = e.currentTarget;
   const state = Store.getState();
+  const taskId = card.dataset.taskId;
 
-  // 只有專注中才能選擇任務
-  if (state.timer.status !== 'FOCUS_RUNNING' && state.timer.status !== 'FOCUS_PAUSED') {
+  // IDLE 狀態：預選任務
+  if (state.timer.status === 'IDLE') {
+    Store.TimerActions.selectTask(taskId);
     return;
   }
 
-  const taskId = card.dataset.taskId;
-  const currentTaskId = state.timer.currentTaskId;
-
-  // 切換選擇
-  if (currentTaskId === taskId) {
-    Store.TimerActions.setCurrentTask(null);
-  } else {
-    Store.TimerActions.setCurrentTask(taskId);
+  // FOCUS 狀態：切換當前任務
+  if (state.timer.status === 'FOCUS_RUNNING' || state.timer.status === 'FOCUS_PAUSED') {
+    const currentTaskId = state.timer.currentTaskId;
+    if (currentTaskId === taskId) {
+      Store.TimerActions.setCurrentTask(null);
+    } else {
+      Store.TimerActions.setCurrentTask(taskId);
+    }
   }
 }
 

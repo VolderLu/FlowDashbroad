@@ -17,9 +17,9 @@ export function initTop3() {
   // 綁定事件
   bindEvents();
 
-  // 訂閱狀態變化（只響應 top3 相關更新，忽略 timer tick 等高頻更新）
+  // 訂閱狀態變化（響應 top3 和 timer 狀態變化，忽略 timer tick 等高頻更新）
   Store.subscribe(render, {
-    tags: [Store.UPDATE_TAGS.TOP3, Store.UPDATE_TAGS.ALL]
+    tags: [Store.UPDATE_TAGS.TOP3, Store.UPDATE_TAGS.TIMER, Store.UPDATE_TAGS.ALL]
   });
 
   // 初始渲染
@@ -34,16 +34,34 @@ function bindEvents() {
     const checkbox = item.querySelector('.top3__checkbox');
     const input = item.querySelector('.top3__input');
 
+    // 整個 item 可點擊（IDLE 時預選）
+    item.addEventListener('click', (e) => handleItemClick(e, index));
+
     // 文字輸入
     input.addEventListener('input', debounce(() => {
       Store.Top3Actions.updateText(index, input.value);
     }, 300));
+    input.addEventListener('click', (e) => e.stopPropagation());
 
     // 勾選狀態
     checkbox.addEventListener('change', () => {
       Store.Top3Actions.toggleComplete(index);
     });
+    checkbox.addEventListener('click', (e) => e.stopPropagation());
   });
+}
+
+/**
+ * 處理項目點擊（IDLE 時預選）
+ * @param {Event} e
+ * @param {number} index
+ */
+function handleItemClick(e, index) {
+  const state = Store.getState();
+  // 只有 IDLE 狀態可以預選
+  if (state.timer.status !== 'IDLE') return;
+
+  Store.TimerActions.selectTop3(index);
 }
 
 /**
@@ -51,12 +69,24 @@ function bindEvents() {
  * @param {Object} state
  */
 function render(state) {
-  const { top3 } = state;
+  const { top3, timer } = state;
+  const isFocusing = timer.status === 'FOCUS_RUNNING';
 
   top3Items.forEach((item, index) => {
     const data = top3.items[index];
     const checkbox = item.querySelector('.top3__checkbox');
     const input = item.querySelector('.top3__input');
+
+    // FOCUS 時隱藏未選中的項目
+    if (isFocusing && timer.currentTop3Index !== null && timer.currentTop3Index !== index) {
+      item.style.display = 'none';
+      return;
+    }
+    item.style.display = '';
+
+    // IDLE 時顯示預選樣式
+    const isSelected = timer.status === 'IDLE' && timer.selectedTop3Index === index;
+    item.classList.toggle('top3__item--selected', isSelected);
 
     // 更新 checkbox
     checkbox.checked = data.completed;
