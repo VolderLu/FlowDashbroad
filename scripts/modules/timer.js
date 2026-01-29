@@ -8,6 +8,10 @@ import { formatTime } from '../utils/time.js';
 import { NotificationService } from '../services/notification.js';
 import { AudioService } from '../services/audio.js';
 
+// ============ 常數 ============
+const TICK_STALE_THRESHOLD_MS = 1000;  // tick 訊息過期閾值（毫秒）
+const FALLBACK_TICK_INTERVAL_MS = 1000; // Fallback 計時器間隔
+
 // DOM 元素
 let timerEl;
 let timerContainerEl;
@@ -24,16 +28,22 @@ let recordList;
 // Web Worker 實例
 let timerWorker = null;
 
-// 本地計時狀態（用於 fallback 和狀態追蹤）
+// Fallback 計時器（當 Worker 不可用時使用）
+let fallbackInterval = null;
+let fallbackStartTime = null;
+let fallbackPausedElapsed = 0;
+
+// 本地計時狀態
 let timerState = {
   isRunning: false,
+  isPaused: false,
   totalSeconds: 0,
   elapsed: 0,
   remaining: 0
 };
 
-// 上次處理的 tick timestamp（用於過濾標籤頁切換時積壓的舊訊息）
-let lastTickTimestamp = 0;
+// 是否正在使用 fallback 模式
+let usingFallback = false;
 
 // 狀態標籤文案對照
 const STATUS_LABELS = {
@@ -76,14 +86,25 @@ export function initTimer() {
   // 綁定事件
   bindEvents();
 
-  // 監聯頁面可見性變化（標籤頁切換回來時請求同步）
+  // 監聽頁面可見性變化
   document.addEventListener('visibilitychange', handleVisibilityChange);
 
-  // 訂閱狀態變化
-  Store.subscribe(render);
+  // 監聽 Page Lifecycle API（Chrome 的 freeze/resume）
+  if ('onfreeze' in document) {
+    document.addEventListener('freeze', handlePageFreeze);
+    document.addEventListener('resume', handlePageResume);
+  }
+
+  // 訂閱狀態變化（響應計時器相關更新）
+  Store.subscribe(render, {
+    tags: [Store.UPDATE_TAGS.TIMER, Store.UPDATE_TAGS.RECORD, Store.UPDATE_TAGS.ALL]
+  });
 
   // 初始渲染
   render(Store.getState());
+
+  // 檢查是否需要從 localStorage 恢復計時器狀態
+  restoreTimerFromStore();
 }
 
 /**
@@ -91,21 +112,110 @@ export function initTimer() {
  */
 function initWorker() {
   try {
-    // 取得當前腳本的路徑，推導 Worker 路徑
     const workerUrl = new URL('../workers/timer-worker.js', import.meta.url);
     timerWorker = new Worker(workerUrl, { type: 'module' });
 
-    // 監聽 Worker 訊息
     timerWorker.onmessage = handleWorkerMessage;
 
     timerWorker.onerror = (error) => {
       console.error('Timer Worker error:', error);
-      // Worker 失敗時可以考慮 fallback 到原本的 setInterval 方式
+      enableFallbackMode();
     };
 
     console.log('Timer Web Worker initialized');
   } catch (error) {
     console.error('Failed to initialize Timer Worker:', error);
+    enableFallbackMode();
+  }
+}
+
+/**
+ * 啟用 Fallback 模式（當 Worker 不可用時）
+ */
+function enableFallbackMode() {
+  if (usingFallback) return;
+
+  console.warn('Enabling fallback timer mode');
+  usingFallback = true;
+
+  // 如果有正在運行的計時，用 setInterval 接管
+  if (timerState.isRunning) {
+    startFallbackTimer();
+  }
+}
+
+/**
+ * 開始 Fallback 計時器
+ */
+function startFallbackTimer() {
+  stopFallbackTimer();
+  fallbackStartTime = Date.now() - (timerState.elapsed * 1000);
+
+  fallbackInterval = setInterval(() => {
+    if (!timerState.isRunning) return;
+
+    const elapsed = Math.floor((Date.now() - fallbackStartTime) / 1000);
+    const remaining = Math.max(0, timerState.totalSeconds - elapsed);
+
+    handleTick(remaining, elapsed);
+
+    if (remaining <= 0) {
+      stopFallbackTimer();
+      handleTimerComplete(elapsed);
+    }
+  }, FALLBACK_TICK_INTERVAL_MS);
+}
+
+/**
+ * 停止 Fallback 計時器
+ */
+function stopFallbackTimer() {
+  if (fallbackInterval) {
+    clearInterval(fallbackInterval);
+    fallbackInterval = null;
+  }
+}
+
+/**
+ * 從 Store 恢復計時器狀態（頁面重載時）
+ */
+function restoreTimerFromStore() {
+  const state = Store.getState();
+  const { timer } = state;
+
+  // 只有在計時中或暫停中才需要恢復
+  if (timer.status === 'FOCUS_RUNNING' || timer.status === 'FOCUS_PAUSED' ||
+      timer.status === 'BREAK_RUNNING' || timer.status === 'BREAK_PAUSED') {
+
+    const isPaused = timer.status === 'FOCUS_PAUSED' || timer.status === 'BREAK_PAUSED';
+    const isBreak = timer.status === 'BREAK_RUNNING' || timer.status === 'BREAK_PAUSED';
+    const totalSeconds = isBreak
+      ? timer.breakDuration * 60
+      : timer.focusDuration * 60;
+
+    timerState = {
+      isRunning: !isPaused,
+      isPaused,
+      totalSeconds,
+      elapsed: timer.elapsedSeconds || 0,
+      remaining: timer.remainingSeconds || totalSeconds
+    };
+
+    // 通知 Worker 恢復狀態
+    if (timerWorker && !usingFallback) {
+      timerWorker.postMessage({
+        type: 'restore',
+        payload: {
+          totalSeconds,
+          elapsedSeconds: timer.elapsedSeconds || 0,
+          isPaused
+        }
+      });
+    } else if (usingFallback && !isPaused) {
+      startFallbackTimer();
+    }
+
+    console.log('Timer restored from store:', timer.status);
   }
 }
 
@@ -113,31 +223,50 @@ function initWorker() {
  * 處理 Worker 訊息
  */
 function handleWorkerMessage(e) {
-  const { type, remaining, elapsed, state, timestamp } = e.data;
+  const { type, remaining, elapsed, state, timestamp, isOvertime, pausedAt } = e.data;
 
   switch (type) {
     case 'tick':
-      // 過濾積壓的舊訊息：若 timestamp 與上次差距 > 500ms，忽略此訊息
-      if (timestamp && lastTickTimestamp > 0 && (timestamp - lastTickTimestamp) > 500) {
-        // 訊息積壓，忽略此 tick，等待 getState 同步
+      // 過濾過期的 tick 訊息
+      if (timestamp && (Date.now() - timestamp) > TICK_STALE_THRESHOLD_MS) {
+        // 訊息過期，請求同步最新狀態
+        timerWorker.postMessage({ type: 'getState' });
         return;
       }
-      lastTickTimestamp = timestamp || Date.now();
       handleTick(remaining, elapsed);
       break;
+
     case 'complete':
-      handleTimerComplete(elapsed);
+      handleTimerComplete(elapsed, isOvertime);
       break;
+
     case 'paused':
       timerState.isRunning = false;
-      timerState.elapsed = e.data.pausedAt;
+      timerState.isPaused = true;
+      timerState.elapsed = pausedAt;
+      timerState.remaining = e.data.remaining;
       break;
+
+    case 'resumed':
+      timerState.isRunning = true;
+      timerState.isPaused = false;
+      timerState.elapsed = elapsed;
+      timerState.remaining = e.data.remaining;
+      break;
+
     case 'state':
-      // 從 getState 收到狀態時，直接更新 UI（繞過 tick 機制）
-      timerState = { ...timerState, ...state };
-      lastTickTimestamp = Date.now(); // 重置 timestamp 避免後續正常 tick 被過濾
-      if (state.remaining !== undefined) {
+    case 'restored':
+      // 從 Worker 同步狀態
+      if (state) {
+        timerState.isRunning = state.isRunning;
+        timerState.isPaused = state.pausedAt !== null;
+        timerState.elapsed = state.elapsed;
+        timerState.remaining = state.remaining;
+
+        // 更新 UI
         timeEl.textContent = formatTime(state.remaining);
+
+        // 同步到 Store
         Store.setState(s => ({
           timer: {
             ...s.timer,
@@ -181,25 +310,57 @@ function bindEvents() {
  * 處理頁面可見性變化
  */
 function handleVisibilityChange() {
-  if (!document.hidden && timerState.isRunning && timerWorker) {
-    // 標籤頁變為可見時，直接請求 Worker 的完整狀態
-    // 這樣可以繞過積壓的 tick 訊息，立即獲得準確的時間
-    timerWorker.postMessage({ type: 'getState' });
+  if (!document.hidden) {
+    // 標籤頁變為可見時，同步 Worker 狀態
+    syncWorkerState();
   }
 }
 
 /**
- * 處理 Worker tick 訊息
+ * 處理頁面凍結（Chrome Page Lifecycle）
+ */
+function handlePageFreeze() {
+  console.log('Page frozen');
+  // 頁面凍結時，Worker 也會被凍結，不需要特別處理
+}
+
+/**
+ * 處理頁面恢復（Chrome Page Lifecycle）
+ */
+function handlePageResume() {
+  console.log('Page resumed from freeze');
+  // 從凍結恢復時，同步 Worker 狀態
+  syncWorkerState();
+}
+
+/**
+ * 同步 Worker 狀態到 UI
+ */
+function syncWorkerState() {
+  if (timerWorker && !usingFallback) {
+    timerWorker.postMessage({ type: 'sync' });
+  } else if (usingFallback && timerState.isRunning) {
+    // Fallback 模式下，重新計算當前時間
+    const elapsed = Math.floor((Date.now() - fallbackStartTime) / 1000);
+    const remaining = Math.max(0, timerState.totalSeconds - elapsed);
+    handleTick(remaining, elapsed);
+  }
+}
+
+/**
+ * 處理 tick 更新
+ * 優化：只更新 UI，不觸發完整的 Store 更新流程
  */
 function handleTick(remaining, elapsed) {
   timerState.remaining = remaining;
   timerState.elapsed = elapsed;
 
-  // 更新顯示
+  // 直接更新 DOM（不觸發 Store）
   timeEl.textContent = formatTime(remaining);
 
-  // 更新 store 中的時間（用於記錄）
-  Store.setState(s => ({
+  // 靜默更新 Store 狀態（不儲存、不通知其他訂閱者）
+  // 這樣在需要時（如計時完成）可以獲取正確的 elapsed 值
+  Store.setStateQuiet(s => ({
     timer: {
       ...s.timer,
       remainingSeconds: remaining,
@@ -211,13 +372,18 @@ function handleTick(remaining, elapsed) {
 /**
  * 處理計時完成
  */
-function handleTimerComplete(elapsed) {
+function handleTimerComplete(elapsed, isOvertime = false) {
   const state = Store.getState();
   const status = state.timer.status;
 
   timerState.isRunning = false;
+  timerState.isPaused = false;
 
-  // 更新 store 中的 elapsedSeconds
+  if (isOvertime) {
+    console.warn('Timer completed with overtime (possibly from sleep/wake)');
+  }
+
+  // 更新 Store
   Store.setState(s => ({
     timer: {
       ...s.timer,
@@ -282,10 +448,10 @@ function handleSecondaryAction() {
   const status = state.timer.status;
 
   if (status === 'FOCUS_RUNNING' || status === 'FOCUS_PAUSED') {
-    const elapsedSeconds = getElapsedSeconds();
+    const elapsedSeconds = timerState.elapsed;
     stopTimer();
 
-    // 更新 store 中的 elapsedSeconds
+    // 更新 Store
     Store.setState(s => ({
       timer: {
         ...s.timer,
@@ -316,23 +482,25 @@ function startFocus() {
 }
 
 /**
- * 開始計時（透過 Web Worker）
- * @param {number} totalSeconds - 總秒數
- * @param {number} [pausedAt] - 如果是從暫停恢復，傳入已經過的秒數
+ * 開始計時
  */
 function startTimer(totalSeconds, pausedAt = null) {
   timerState = {
     isRunning: true,
+    isPaused: false,
     totalSeconds,
     elapsed: pausedAt || 0,
     remaining: totalSeconds - (pausedAt || 0)
   };
 
-  if (timerWorker) {
+  if (timerWorker && !usingFallback) {
     timerWorker.postMessage({
       type: 'start',
       payload: { totalSeconds, pausedAt }
     });
+  } else {
+    fallbackPausedElapsed = pausedAt || 0;
+    startFallbackTimer();
   }
 }
 
@@ -340,9 +508,14 @@ function startTimer(totalSeconds, pausedAt = null) {
  * 暫停計時
  */
 function pauseTimer() {
-  if (timerState.isRunning && timerWorker) {
+  timerState.isRunning = false;
+  timerState.isPaused = true;
+
+  if (timerWorker && !usingFallback) {
     timerWorker.postMessage({ type: 'pause' });
-    timerState.isRunning = false;
+  } else {
+    stopFallbackTimer();
+    fallbackPausedElapsed = timerState.elapsed;
   }
 }
 
@@ -350,9 +523,17 @@ function pauseTimer() {
  * 繼續計時
  */
 function resumeTimer() {
-  if (!timerState.isRunning && timerWorker) {
-    timerWorker.postMessage({ type: 'resume' });
-    timerState.isRunning = true;
+  timerState.isRunning = true;
+  timerState.isPaused = false;
+
+  if (timerWorker && !usingFallback) {
+    timerWorker.postMessage({
+      type: 'resume',
+      payload: { fromElapsed: timerState.elapsed }
+    });
+  } else {
+    fallbackStartTime = Date.now() - (fallbackPausedElapsed * 1000);
+    startFallbackTimer();
   }
 }
 
@@ -360,23 +541,19 @@ function resumeTimer() {
  * 停止計時
  */
 function stopTimer() {
-  if (timerWorker) {
-    timerWorker.postMessage({ type: 'stop' });
-  }
   timerState = {
     isRunning: false,
+    isPaused: false,
     totalSeconds: 0,
     elapsed: 0,
     remaining: 0
   };
-}
 
-/**
- * 獲取已經過的秒數
- * @returns {number}
- */
-function getElapsedSeconds() {
-  return timerState.elapsed;
+  if (timerWorker && !usingFallback) {
+    timerWorker.postMessage({ type: 'stop' });
+  } else {
+    stopFallbackTimer();
+  }
 }
 
 /**
@@ -391,7 +568,6 @@ function toggleRecordPanel() {
 
 /**
  * 渲染
- * @param {Object} state
  */
 function render(state) {
   const { timer, focusRecords } = state;
@@ -403,7 +579,7 @@ function render(state) {
   // 更新狀態標籤
   statusEl.textContent = STATUS_LABELS[timer.status];
 
-  // 更新時間顯示（如果不在運行中，使用 store 的值）
+  // 更新時間顯示（如果不在運行中，使用 Store 的值）
   if (!timerState.isRunning) {
     timeEl.textContent = formatTime(timer.remainingSeconds);
   }
@@ -437,7 +613,6 @@ function render(state) {
 
 /**
  * 渲染紀錄列表
- * @param {Array} records
  */
 function renderRecords(records) {
   if (records.length === 0) {
@@ -474,7 +649,6 @@ function renderRecords(records) {
 
 /**
  * 處理紀錄編輯
- * @param {Event} e
  */
 function handleRecordEdit(e) {
   const recordItem = e.target.closest('.record-item');
@@ -483,7 +657,6 @@ function handleRecordEdit(e) {
   let value = e.target.value;
 
   if (field === 'duration') {
-    // 解析分鐘數
     const match = value.match(/\d+/);
     value = match ? parseInt(match[0], 10) : 0;
     e.target.value = `${value} 分鐘`;

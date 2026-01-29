@@ -6,6 +6,10 @@
 import { Store } from '../state/store.js';
 import { AudioService } from '../services/audio.js';
 
+// ============ 常數 ============
+const TYPING_PROTECTION_MS = 10000;  // 輸入保護時間（毫秒），防止 render 中斷輸入
+const SAVE_DEBOUNCE_MS = 500;        // 延遲儲存時間（毫秒）
+
 // DOM 元素
 let taskListEl;
 let addTaskBtn;
@@ -30,8 +34,10 @@ export function initTasks() {
   // 綁定新增任務按鈕
   addTaskBtn.addEventListener('click', handleAddTask);
 
-  // 訂閱狀態變化
-  Store.subscribe(handleStateChange);
+  // 訂閱狀態變化（只響應任務和計時器狀態變化，忽略 timer tick）
+  Store.subscribe(handleStateChange, {
+    tags: [Store.UPDATE_TAGS.TASK, Store.UPDATE_TAGS.TIMER, Store.UPDATE_TAGS.ALL]
+  });
 
   // 初始渲染
   render(Store.getState());
@@ -61,12 +67,12 @@ function setTyping(typing) {
     if (typingTimeout) {
       clearTimeout(typingTimeout);
     }
-    // 停止輸入後 10 秒才允許 render
+    // 停止輸入後才允許 render
     typingTimeout = setTimeout(() => {
       isTyping = false;
       // 輸入結束後，用最新狀態重新渲染
       render(Store.getState());
-    }, 10000);
+    }, TYPING_PROTECTION_MS);
   }
 }
 
@@ -307,12 +313,11 @@ function handleTaskComplete(e) {
 function handleTaskNameInput(e) {
   setTyping(true);
 
-  // 延遲儲存
+  // 延遲儲存（傳入 input 元素，在執行時獲取最新值）
   const card = e.target.closest('.task-card');
   const taskId = card.dataset.taskId;
-  const value = e.target.value;
 
-  debouncedSave(`name-${taskId}`, () => {
+  debouncedSave(`name-${taskId}`, e.target, (value) => {
     Store.TaskActions.updateTask(taskId, { name: value });
   });
 }
@@ -341,9 +346,8 @@ function handleTaskDescriptionInput(e) {
 
   const card = e.target.closest('.task-card');
   const taskId = card.dataset.taskId;
-  const value = e.target.value;
 
-  debouncedSave(`desc-${taskId}`, () => {
+  debouncedSave(`desc-${taskId}`, e.target, (value) => {
     Store.TaskActions.updateTask(taskId, { description: value });
   });
 }
@@ -395,9 +399,8 @@ function handleStepTextInput(e) {
   const card = e.target.closest('.task-card');
   const taskId = card.dataset.taskId;
   const stepIndex = parseInt(e.target.dataset.stepIndex, 10);
-  const value = e.target.value;
 
-  debouncedSave(`step-${taskId}-${stepIndex}`, () => {
+  debouncedSave(`step-${taskId}-${stepIndex}`, e.target, (value) => {
     Store.TaskActions.updateStep(taskId, stepIndex, value);
   });
 }
@@ -417,20 +420,23 @@ function handleStepTextBlur(e) {
 
 /**
  * 延遲儲存（使用 Map 管理多個 timer）
- * @param {string} key
- * @param {Function} saveFn
+ * @param {string} key - 唯一標識
+ * @param {HTMLInputElement} inputEl - 輸入元素（用於獲取最新值）
+ * @param {Function} saveFn - 儲存函數，接收最新值作為參數
  */
-function debouncedSave(key, saveFn) {
+function debouncedSave(key, inputEl, saveFn) {
   // 清除之前的 timer
   if (saveTimers.has(key)) {
     clearTimeout(saveTimers.get(key));
   }
 
-  // 設定新的 timer（500ms 後儲存）
+  // 設定新的 timer
   const timer = setTimeout(() => {
-    saveFn();
+    // 在執行時獲取最新值（而非閉包捕獲的舊值）
+    const currentValue = inputEl.value;
+    saveFn(currentValue);
     saveTimers.delete(key);
-  }, 500);
+  }, SAVE_DEBOUNCE_MS);
 
   saveTimers.set(key, timer);
 }

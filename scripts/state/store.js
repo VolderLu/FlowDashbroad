@@ -5,18 +5,49 @@
 
 import { StorageService } from '../services/storage.js';
 
-// 訂閱者列表
-const subscribers = new Set();
+// ============ 常數 ============
+const MIN_VALID_FOCUS_SECONDS = 5 * 60;  // 有效專注最低門檻（5 分鐘）
+const LONG_BREAK_INTERVAL = 3;            // 每幾次專注後進入長休息
+const SHORT_BREAK_MINUTES = 5;            // 短休息時長（分鐘）
+const LONG_BREAK_MINUTES = 15;            // 長休息時長（分鐘）
+
+/**
+ * 生成唯一 ID
+ * 優先使用 crypto.randomUUID()，若不支援則使用 fallback
+ * @returns {string}
+ */
+function generateId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback: 使用時間戳 + 隨機數
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
+}
+
+// 訂閱者列表（支援標籤過濾）
+// 格式: { callback: Function, tags: Set<string> | null }
+const subscribers = new Map();
 
 // 當前狀態
 let state = null;
+
+// 更新標籤常數
+const UPDATE_TAGS = {
+  TIMER_TICK: 'timer:tick',     // 計時器 tick（高頻，只更新 UI）
+  TIMER: 'timer',               // 計時器狀態變化
+  TASK: 'task',                 // 任務相關
+  TOP3: 'top3',                 // 三大優先
+  SETTINGS: 'settings',         // 設定
+  RECORD: 'record',             // 專注紀錄
+  ALL: '*'                      // 全部
+};
 
 /**
  * 初始化 Store
  */
 function init() {
   state = StorageService.checkDateAndReset();
-  notifySubscribers();
+  notifySubscribers(UPDATE_TAGS.ALL);
 }
 
 /**
@@ -30,29 +61,62 @@ function getState() {
 /**
  * 更新狀態
  * @param {Function} updater - 接收當前狀態，返回新狀態的函數
+ * @param {Object} options - 選項
+ * @param {string} options.tag - 更新標籤（用於選擇性通知）
+ * @param {boolean} options.skipSave - 是否跳過儲存（用於高頻更新）
+ * @param {boolean} options.skipNotify - 是否跳過通知訂閱者
  */
-function setState(updater) {
+function setState(updater, options = {}) {
+  const { tag = UPDATE_TAGS.ALL, skipSave = false, skipNotify = false } = options;
+
   const newState = updater(state);
   state = { ...state, ...newState };
-  StorageService.save(state);
-  notifySubscribers();
+
+  if (!skipSave) {
+    StorageService.save(state);
+  }
+
+  if (!skipNotify) {
+    notifySubscribers(tag);
+  }
+}
+
+/**
+ * 僅更新狀態（不儲存、不通知）
+ * 用於高頻更新如 timer tick，之後手動觸發 UI 更新
+ * @param {Function} updater
+ */
+function setStateQuiet(updater) {
+  const newState = updater(state);
+  state = { ...state, ...newState };
 }
 
 /**
  * 訂閱狀態變化
  * @param {Function} callback
+ * @param {Object} options - 選項
+ * @param {string[]} options.tags - 只響應這些標籤的更新（null 表示響應所有）
  * @returns {Function} 取消訂閱的函數
  */
-function subscribe(callback) {
-  subscribers.add(callback);
+function subscribe(callback, options = {}) {
+  const { tags = null } = options;
+  const tagSet = tags ? new Set(tags) : null;
+
+  subscribers.set(callback, { callback, tags: tagSet });
   return () => subscribers.delete(callback);
 }
 
 /**
- * 通知所有訂閱者
+ * 通知訂閱者
+ * @param {string} tag - 更新標籤
  */
-function notifySubscribers() {
-  subscribers.forEach(callback => callback(state));
+function notifySubscribers(tag = UPDATE_TAGS.ALL) {
+  subscribers.forEach(({ callback, tags }) => {
+    // 如果訂閱者沒有指定標籤，或標籤匹配，則通知
+    if (!tags || tags.has(UPDATE_TAGS.ALL) || tags.has(tag) || tag === UPDATE_TAGS.ALL) {
+      callback(state, tag);
+    }
+  });
 }
 
 // Timer Actions
@@ -68,7 +132,7 @@ const TimerActions = {
         focusDuration: minutes,
         remainingSeconds: minutes * 60
       }
-    }));
+    }), { tag: UPDATE_TAGS.TIMER });
   },
 
   /**
@@ -83,7 +147,7 @@ const TimerActions = {
         elapsedSeconds: 0,
         startTime: Date.now()
       }
-    }));
+    }), { tag: UPDATE_TAGS.TIMER });
   },
 
   /**
@@ -95,7 +159,7 @@ const TimerActions = {
         ...s.timer,
         status: 'FOCUS_PAUSED'
       }
-    }));
+    }), { tag: UPDATE_TAGS.TIMER });
   },
 
   /**
@@ -107,7 +171,7 @@ const TimerActions = {
         ...s.timer,
         status: 'FOCUS_RUNNING'
       }
-    }));
+    }), { tag: UPDATE_TAGS.TIMER });
   },
 
   /**
@@ -117,12 +181,12 @@ const TimerActions = {
   stopFocus() {
     const currentState = getState();
     const elapsed = currentState.timer.elapsedSeconds;
-    const isValid = elapsed >= 5 * 60; // >= 5 分鐘
+    const isValid = elapsed >= MIN_VALID_FOCUS_SECONDS;
 
     if (isValid) {
       // 記錄有效專注
       const newRecord = {
-        id: Date.now().toString(36),
+        id: generateId(),
         index: currentState.focusRecords.length + 1,
         duration: Math.floor(elapsed / 60),
         taskName: getTaskName(currentState.timer.currentTaskId, currentState.tasks),
@@ -131,7 +195,9 @@ const TimerActions = {
       };
 
       const newFocusCount = currentState.timer.focusCount + 1;
-      const breakDuration = newFocusCount % 3 === 0 ? 15 : 5;
+      const breakDuration = newFocusCount % LONG_BREAK_INTERVAL === 0
+        ? LONG_BREAK_MINUTES
+        : SHORT_BREAK_MINUTES;
 
       setState(s => ({
         timer: {
@@ -143,7 +209,7 @@ const TimerActions = {
           elapsedSeconds: 0
         },
         focusRecords: [...s.focusRecords, newRecord]
-      }));
+      }), { tag: UPDATE_TAGS.TIMER });
     } else {
       // 無效專注，回到 IDLE
       setState(s => ({
@@ -154,7 +220,7 @@ const TimerActions = {
           elapsedSeconds: 0,
           startTime: null
         }
-      }));
+      }), { tag: UPDATE_TAGS.TIMER });
     }
 
     return isValid;
@@ -166,7 +232,7 @@ const TimerActions = {
   completeFocus() {
     const currentState = getState();
     const newRecord = {
-      id: Date.now().toString(36),
+      id: generateId(),
       index: currentState.focusRecords.length + 1,
       duration: currentState.timer.focusDuration,
       taskName: getTaskName(currentState.timer.currentTaskId, currentState.tasks),
@@ -175,7 +241,9 @@ const TimerActions = {
     };
 
     const newFocusCount = currentState.timer.focusCount + 1;
-    const breakDuration = newFocusCount % 3 === 0 ? 15 : 5;
+    const breakDuration = newFocusCount % LONG_BREAK_INTERVAL === 0
+      ? LONG_BREAK_MINUTES
+      : SHORT_BREAK_MINUTES;
 
     setState(s => ({
       timer: {
@@ -187,7 +255,7 @@ const TimerActions = {
         elapsedSeconds: 0
       },
       focusRecords: [...s.focusRecords, newRecord]
-    }));
+    }), { tag: UPDATE_TAGS.TIMER });
   },
 
   /**
@@ -201,7 +269,7 @@ const TimerActions = {
         remainingSeconds: s.timer.focusDuration * 60,
         elapsedSeconds: 0
       }
-    }));
+    }), { tag: UPDATE_TAGS.TIMER });
   },
 
   /**
@@ -213,7 +281,7 @@ const TimerActions = {
         ...s.timer,
         status: 'BREAK_PAUSED'
       }
-    }));
+    }), { tag: UPDATE_TAGS.TIMER });
   },
 
   /**
@@ -225,7 +293,7 @@ const TimerActions = {
         ...s.timer,
         status: 'BREAK_RUNNING'
       }
-    }));
+    }), { tag: UPDATE_TAGS.TIMER });
   },
 
   /**
@@ -239,11 +307,12 @@ const TimerActions = {
         remainingSeconds: s.timer.focusDuration * 60,
         elapsedSeconds: 0
       }
-    }));
+    }), { tag: UPDATE_TAGS.TIMER });
   },
 
   /**
    * 更新計時器（每秒調用）
+   * @deprecated 使用 setStateQuiet 直接更新，不再需要此方法
    */
   tick() {
     setState(s => {
@@ -256,7 +325,7 @@ const TimerActions = {
           elapsedSeconds: elapsed
         }
       };
-    });
+    }, { tag: UPDATE_TAGS.TIMER_TICK, skipSave: true });
   },
 
   /**
@@ -269,7 +338,7 @@ const TimerActions = {
         ...s.timer,
         currentTaskId: taskId
       }
-    }));
+    }), { tag: UPDATE_TAGS.TIMER });
   }
 };
 
@@ -285,7 +354,7 @@ const Top3Actions = {
       const items = [...s.top3.items];
       items[index] = { ...items[index], text };
       return { top3: { items } };
-    });
+    }, { tag: UPDATE_TAGS.TOP3 });
   },
 
   /**
@@ -297,7 +366,7 @@ const Top3Actions = {
       const items = [...s.top3.items];
       items[index] = { ...items[index], completed: !items[index].completed };
       return { top3: { items } };
-    });
+    }, { tag: UPDATE_TAGS.TOP3 });
   }
 };
 
@@ -308,15 +377,15 @@ const TaskActions = {
    * @returns {string} 新任務 ID
    */
   addTask() {
-    const id = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+    const id = generateId();
     const newTask = {
       id,
       name: '',
       description: '',
       steps: [
-        { id: id + '-1', text: '', completed: false },
-        { id: id + '-2', text: '', completed: false },
-        { id: id + '-3', text: '', completed: false }
+        { id: `${id}-1`, text: '', completed: false },
+        { id: `${id}-2`, text: '', completed: false },
+        { id: `${id}-3`, text: '', completed: false }
       ],
       completed: false,
       createdAt: Date.now(),
@@ -325,7 +394,7 @@ const TaskActions = {
 
     setState(s => ({
       tasks: [...s.tasks, newTask]
-    }));
+    }), { tag: UPDATE_TAGS.TASK });
 
     return id;
   },
@@ -340,7 +409,7 @@ const TaskActions = {
       tasks: s.tasks.map(t =>
         t.id === taskId ? { ...t, ...updates } : t
       )
-    }));
+    }), { tag: UPDATE_TAGS.TASK });
   },
 
   /**
@@ -350,7 +419,7 @@ const TaskActions = {
   deleteTask(taskId) {
     setState(s => ({
       tasks: s.tasks.filter(t => t.id !== taskId)
-    }));
+    }), { tag: UPDATE_TAGS.TASK });
   },
 
   /**
@@ -362,7 +431,7 @@ const TaskActions = {
       tasks: s.tasks.map(t =>
         t.id === taskId ? { ...t, completed: true, completedAt: Date.now() } : t
       )
-    }));
+    }), { tag: UPDATE_TAGS.TASK });
   },
 
   /**
@@ -378,7 +447,7 @@ const TaskActions = {
         steps[stepIndex] = { ...steps[stepIndex], completed: !steps[stepIndex].completed };
         return { ...t, steps };
       })
-    }));
+    }), { tag: UPDATE_TAGS.TASK });
   },
 
   /**
@@ -395,7 +464,7 @@ const TaskActions = {
         steps[stepIndex] = { ...steps[stepIndex], text };
         return { ...t, steps };
       })
-    }));
+    }), { tag: UPDATE_TAGS.TASK });
   }
 };
 
@@ -411,7 +480,7 @@ const RecordActions = {
       focusRecords: s.focusRecords.map(r =>
         r.id === recordId ? { ...r, ...updates } : r
       )
-    }));
+    }), { tag: UPDATE_TAGS.RECORD });
   }
 };
 
@@ -426,7 +495,7 @@ const SettingsActions = {
         ...s.settings,
         soundEnabled: !s.settings.soundEnabled
       }
-    }));
+    }), { tag: UPDATE_TAGS.SETTINGS });
   },
 
   /**
@@ -439,7 +508,7 @@ const SettingsActions = {
         ...s.settings,
         soundVolume: volume
       }
-    }));
+    }), { tag: UPDATE_TAGS.SETTINGS });
   }
 };
 
@@ -459,7 +528,9 @@ export const Store = {
   init,
   getState,
   setState,
+  setStateQuiet,
   subscribe,
+  UPDATE_TAGS,
   TimerActions,
   Top3Actions,
   TaskActions,

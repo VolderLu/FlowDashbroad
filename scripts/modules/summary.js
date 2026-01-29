@@ -28,8 +28,10 @@ export function initSummary() {
   // 綁定事件
   bindEvents();
 
-  // 訂閱狀態變化
-  Store.subscribe(render);
+  // 訂閱狀態變化（只響應紀錄和任務更新，忽略高頻的 timer tick）
+  Store.subscribe(render, {
+    tags: [Store.UPDATE_TAGS.RECORD, Store.UPDATE_TAGS.TASK, Store.UPDATE_TAGS.ALL]
+  });
 
   // 初始渲染
   render(Store.getState());

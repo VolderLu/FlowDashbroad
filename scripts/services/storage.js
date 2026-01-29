@@ -8,6 +8,11 @@ import { getTodayDate, generateId } from '../utils/time.js';
 const STORAGE_KEY = 'flowdashboard_state';
 const VERSION = 1;
 
+// ============ 延遲儲存機制 ============
+const SAVE_DELAY_MS = 1000;  // 延遲儲存時間（毫秒）
+let saveTimeout = null;
+let pendingState = null;
+
 /**
  * 建立初始狀態
  * @returns {Object}
@@ -59,10 +64,10 @@ function load() {
 }
 
 /**
- * 儲存狀態到 localStorage
+ * 儲存狀態到 localStorage（同步版本，僅供內部使用）
  * @param {Object} state
  */
-function save(state) {
+function saveSync(state) {
   try {
     const data = {
       version: VERSION,
@@ -72,6 +77,69 @@ function save(state) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch (e) {
     console.error('Failed to save state:', e);
+  }
+}
+
+/**
+ * 延遲儲存狀態到 localStorage（非阻塞）
+ * 使用 debounce + requestIdleCallback 避免阻塞 UI
+ * @param {Object} state
+ */
+function save(state) {
+  // 記錄待儲存的狀態
+  pendingState = state;
+
+  // 清除之前的 timeout
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+  }
+
+  // 延遲儲存
+  saveTimeout = setTimeout(() => {
+    if (pendingState) {
+      // 優先使用 requestIdleCallback（在瀏覽器閒置時執行）
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(() => {
+          saveSync(pendingState);
+          pendingState = null;
+        }, { timeout: 2000 }); // 最多等 2 秒
+      } else {
+        // Fallback: 直接儲存
+        saveSync(pendingState);
+        pendingState = null;
+      }
+    }
+    saveTimeout = null;
+  }, SAVE_DELAY_MS);
+}
+
+/**
+ * 立即儲存（用於頁面卸載前等關鍵時刻）
+ * @param {Object} state
+ */
+function saveImmediate(state) {
+  // 清除待處理的延遲儲存
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
+  pendingState = null;
+
+  // 同步儲存
+  saveSync(state);
+}
+
+/**
+ * 強制刷新待儲存的狀態（若有）
+ */
+function flushPendingSave() {
+  if (pendingState) {
+    saveSync(pendingState);
+    pendingState = null;
+  }
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
   }
 }
 
@@ -120,10 +188,23 @@ function checkDateAndReset() {
   }
 }
 
+// 頁面卸載前確保資料已儲存
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', flushPendingSave);
+  // visibilitychange 也要處理（行動裝置切換 app 時）
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      flushPendingSave();
+    }
+  });
+}
+
 export const StorageService = {
   STORAGE_KEY,
   load,
   save,
+  saveImmediate,
+  flushPendingSave,
   clear,
   checkDateAndReset,
   createInitialState

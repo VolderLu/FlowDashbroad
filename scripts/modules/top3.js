@@ -17,8 +17,10 @@ export function initTop3() {
   // 綁定事件
   bindEvents();
 
-  // 訂閱狀態變化
-  Store.subscribe(render);
+  // 訂閱狀態變化（只響應 top3 相關更新，忽略 timer tick 等高頻更新）
+  Store.subscribe(render, {
+    tags: [Store.UPDATE_TAGS.TOP3, Store.UPDATE_TAGS.ALL]
+  });
 
   // 初始渲染
   render(Store.getState());
