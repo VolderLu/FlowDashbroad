@@ -468,9 +468,16 @@ const TaskActions = {
    * @param {string} taskId
    */
   deleteTask(taskId) {
-    setState(s => ({
-      tasks: s.tasks.filter(t => t.id !== taskId)
-    }), { tag: UPDATE_TAGS.TASK });
+    setState(s => {
+      const newState = {
+        tasks: s.tasks.filter(t => t.id !== taskId)
+      };
+      // 如果刪除的是預選中的任務，清除預選
+      if (s.timer.selectedTaskId === taskId) {
+        newState.timer = { ...s.timer, selectedTaskId: null };
+      }
+      return newState;
+    }, { tag: UPDATE_TAGS.TASK });
   },
 
   /**
