@@ -155,7 +155,10 @@ interface TimerState {
   breakDuration: number;        // 緩衝時長（分鐘）5 or 15
   remainingSeconds: number;     // 剩餘秒數
   elapsedSeconds: number;       // 已經過秒數（用於判斷有效專注）
-  currentTaskId: string | null; // 當前進行的任務 ID
+  currentTaskId: string | null; // FOCUS 時當前進行的任務 ID
+  currentTop3Index: number | null; // FOCUS 時當前的三大優先索引 (0, 1, 2)
+  selectedTaskId: string | null;   // IDLE 時預選的任務 ID
+  selectedTop3Index: number | null; // IDLE 時預選的三大優先索引
   focusCount: number;           // 今日專注次數（用於判斷長休息）
   startTime: number | null;     // 開始時間戳（用於暫存紀錄）
 }
@@ -363,8 +366,9 @@ function checkAndResetIfNewDay() {
 | 狀態 | Class | 視覺效果 |
 |------|-------|----------|
 | 預設 | `.task-card` | 正常 |
-| 當前進行中 | `.task-card--active` | 左側藍色邊線 + 背景微亮 |
-| 已完成 | `.task-card--completed` | opacity: 0.5 |
+| 預選中（IDLE） | `.task-card--selected` | 邊框高亮 + 背景微亮 |
+| 當前進行中 | `.task-card--active` | 左側焦茶邊線 + 背景微亮 |
+| 已完成 | `.task-card--completed` | opacity: 0.4 |
 
 ---
 
@@ -546,6 +550,32 @@ type WorkerResponse = {
 |------|------|
 | 輸入變更 | 即時儲存 |
 | 勾選 | 加刪除線、儲存 |
+| IDLE 時點擊項目 | 預選該項目（toggle，再次點擊取消） |
+
+### 8.4 專注選擇功能
+
+#### 功能說明
+IDLE 狀態下，使用者可預先選定一個三大優先和/或一個任務。點擊「開始」後：
+- 三大優先區域只顯示選中項目，其他隱藏
+- 任務流程表只顯示選中任務，其他隱藏
+- 暫停/停止/完成時恢復顯示全部項目
+
+#### 狀態流程
+```
+[IDLE] 預選項目（顯示高亮樣式）
+    ↓ 點擊「開始」
+[FOCUS_RUNNING] 非選中項目隱藏
+    ↓ 暫停/停止/完成
+[恢復顯示全部項目]
+```
+
+#### 相關 Actions
+| Action | 說明 |
+|--------|------|
+| `selectTop3(index)` | 預選三大優先（toggle） |
+| `selectTask(taskId)` | 預選任務（toggle） |
+| `clearSelection()` | 清除所有預選 |
+| `startFocus()` | 將預選帶入 current，清除預選 |
 
 ---
 
@@ -718,6 +748,15 @@ function formatDuration(minutes) {
 - [ ] 可刪除任務
 - [ ] 步驟可個別勾選
 - [ ] 完成任務移至底部
+
+### 12.3 專注選擇功能
+
+- [ ] IDLE 時可預選三大優先（點擊 toggle）
+- [ ] IDLE 時可預選任務（點擊 toggle）
+- [ ] 預選項目顯示高亮樣式
+- [ ] 開始專注後非選中項目隱藏
+- [ ] 暫停/停止/完成時恢復顯示全部
+- [ ] 刪除預選中的任務時自動清除預選
 
 ### 12.3 資料儲存
 
