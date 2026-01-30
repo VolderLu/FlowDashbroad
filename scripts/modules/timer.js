@@ -392,7 +392,7 @@ function handleTimerComplete(elapsed, isOvertime = false) {
     }
   }));
 
-  if (status === 'FOCUS_RUNNING') {
+  if (status === 'FOCUS_RUNNING' || status === 'FOCUS_PAUSED') {
     Store.TimerActions.completeFocus();
     if (state.settings.soundEnabled) {
       AudioService.playFocusEnd();
@@ -401,7 +401,7 @@ function handleTimerComplete(elapsed, isOvertime = false) {
     // 開始休息計時
     const newState = Store.getState();
     startTimer(newState.timer.breakDuration * 60);
-  } else if (status === 'BREAK_RUNNING') {
+  } else if (status === 'BREAK_RUNNING' || status === 'BREAK_PAUSED') {
     Store.TimerActions.completeBreak();
     if (state.settings.soundEnabled) {
       AudioService.playBreakEnd();
