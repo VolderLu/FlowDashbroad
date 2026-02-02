@@ -32,6 +32,7 @@
   border-radius: var(--radius-md);
   border: var(--border-subtle);
   transition: all var(--duration-normal) var(--ease-natural);
+  cursor: pointer;
 }
 
 .top3__item:hover {
@@ -41,6 +42,13 @@
 
 .top3__item--completed {
   opacity: 0.5;
+}
+
+/* 預選樣式 */
+.top3__item--selected {
+  border-color: var(--color-primary);
+  background: rgba(139, 115, 85, 0.1);
+  box-shadow: 0 0 0 2px rgba(139, 115, 85, 0.2);
 }
 
 .top3__item--completed .top3__input {

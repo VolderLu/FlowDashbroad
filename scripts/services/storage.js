@@ -26,6 +26,9 @@ function createInitialState() {
       remainingSeconds: 25 * 60,
       elapsedSeconds: 0,
       currentTaskId: null,
+      currentTop3Index: null,      // FOCUS 時當前的三大優先索引
+      selectedTaskId: null,        // IDLE 時預選的任務 ID
+      selectedTop3Index: null,     // IDLE 時預選的三大優先索引
       focusCount: 0,
       startTime: null
     },
