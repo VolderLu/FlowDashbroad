@@ -21,6 +21,9 @@ let typingTimeout = null;
 // 追蹤是否正在 hover（避免 render 導致閃爍）
 let isHovering = false;
 
+// 追蹤 IME 組字狀態（避免中文輸入時被中斷）
+let isComposing = false;
+
 // 延遲儲存用的 debounce timers
 const saveTimers = new Map();
 
@@ -69,6 +72,11 @@ function setTyping(typing) {
     }
     // 停止輸入後才允許 render
     typingTimeout = setTimeout(() => {
+      // 如果 IME 仍在組字，延長保護
+      if (isComposing) {
+        setTyping(true);
+        return;
+      }
       isTyping = false;
       // 輸入結束後，用最新狀態重新渲染
       render(Store.getState());
@@ -256,6 +264,17 @@ function bindTaskEvents() {
     input.addEventListener('blur', handleStepTextBlur);
     input.addEventListener('click', e => e.stopPropagation());
   });
+
+  // IME 組字事件（支援中文輸入）
+  taskListEl.querySelectorAll('input[type="text"]').forEach(input => {
+    input.addEventListener('compositionstart', () => {
+      isComposing = true;
+      setTyping(true);
+    });
+    input.addEventListener('compositionend', () => {
+      isComposing = false;
+    });
+  });
 }
 
 /**
@@ -296,6 +315,10 @@ function handleCardMouseEnter() {
  */
 function handleCardMouseLeave() {
   isHovering = false;
+  // 如果正在輸入或 IME 組字中，不重新渲染
+  if (isTyping || isComposing) {
+    return;
+  }
   // 離開後用最新狀態重新渲染
   render(Store.getState());
 }
